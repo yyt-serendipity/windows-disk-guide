@@ -1,0 +1,15 @@
+# Local binaries, release archives, and transient build/test output
+*.exe
+*.pdb
+*.zip
+*.dmp
+.build-*/
+dist/
+bin/
+obj/
+.vs/
+TestResults/
+*.user
+*.log
+.env
+.env.*

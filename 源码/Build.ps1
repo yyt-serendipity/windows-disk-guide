@@ -1,0 +1,62 @@
+﻿#requires -Version 5.1
+param([switch]$Check, [string]$PreviewDirectory)
+$ErrorActionPreference = 'Stop'
+$projectDir = Split-Path -LiteralPath $PSScriptRoot
+$framework = @('Framework64','Framework') | ForEach-Object {
+    Join-Path $env:WINDIR "Microsoft.NET\$_\v4.0.30319"
+} | Where-Object {
+    [IO.File]::Exists((Join-Path $_ 'csc.exe')) -and
+    [IO.File]::Exists((Join-Path $_ 'WPF\PresentationFramework.dll'))
+} | Select-Object -First 1
+$release = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' -Name Release -ErrorAction SilentlyContinue).Release
+if (-not $framework -or $release -lt 528040) {
+    throw 'Install .NET Framework 4.8 or later with its Windows desktop components before building.'
+}
+$compiler = Join-Path $framework 'csc.exe'
+$stage = Join-Path $projectDir ('.build-' + [Guid]::NewGuid().ToString('N'))
+$null = [IO.Directory]::CreateDirectory($stage)
+$appFile = '磁盘清理助手.exe'
+$binary = Join-Path $stage $appFile
+$testBin = Join-Path $stage 'Check.exe'
+$iconPath = Join-Path $stage 'disk.ico'
+try {
+    Add-Type -AssemblyName System.Drawing
+    $bmp = New-Object Drawing.Bitmap 64,64
+    $g = [Drawing.Graphics]::FromImage($bmp)
+    $g.Clear([Drawing.Color]::Transparent)
+    $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $blue = New-Object Drawing.SolidBrush ([Drawing.ColorTranslator]::FromHtml('#345BC1'))
+    $mint = New-Object Drawing.SolidBrush ([Drawing.ColorTranslator]::FromHtml('#8CE3D0'))
+    $g.FillRectangle($blue,3,3,58,58)
+    $g.FillPolygon([Drawing.Brushes]::White,[Drawing.Point[]]@([Drawing.Point]::new(16,17),[Drawing.Point]::new(47,17),[Drawing.Point]::new(53,33),[Drawing.Point]::new(10,33)))
+    $g.FillRectangle([Drawing.Brushes]::White,11,37,41,9)
+    $g.FillRectangle($mint,38,39,9,4)
+    $ico = [Drawing.Icon]::FromHandle($bmp.GetHicon())
+    $stream = [IO.File]::Create($iconPath)
+    try {$ico.Save($stream)} finally {$stream.Dispose();$ico.Dispose();$mint.Dispose();$blue.Dispose();$g.Dispose();$bmp.Dispose()}
+    $common = @('/nologo','/optimize+','/warn:4','/codepage:65001','/platform:anycpu',
+        ('/win32manifest:' + (Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:' + $iconPath),
+        ('/resource:' + (Join-Path $PSScriptRoot 'Window.xaml') + ',Window.xaml'),
+        ('/r:' + (Join-Path $framework 'WPF\PresentationFramework.dll')),('/r:' + (Join-Path $framework 'WPF\PresentationCore.dll')),
+        ('/r:' + (Join-Path $framework 'WPF\WindowsBase.dll')),('/r:' + (Join-Path $framework 'System.Xaml.dll')),
+        (Join-Path $PSScriptRoot 'App.cs'),(Join-Path $PSScriptRoot 'Catalog.cs'),(Join-Path $PSScriptRoot 'Cleaner.cs'),
+        (Join-Path $PSScriptRoot 'Usage.cs'),(Join-Path $PSScriptRoot 'Browser.cs'))
+    & $compiler '/target:winexe' '/main:DiskGuide.Program' ('/out:' + $binary) @common
+    if ($LASTEXITCODE -ne 0) {throw 'Build failed.'}
+    if ($Check) {
+        & $compiler '/target:exe' '/main:DiskGuide.Check' ('/out:' + $testBin) ('/r:' + (Join-Path $framework 'WPF\UIAutomationProvider.dll')) ('/r:' + (Join-Path $framework 'WPF\UIAutomationTypes.dll')) @common (Join-Path $PSScriptRoot 'Check.cs')
+        if ($LASTEXITCODE -ne 0) {throw 'Test build failed.'}
+        & $testBin $PreviewDirectory
+        if ($LASTEXITCODE -ne 0) {throw 'Checks failed.'}
+    }
+    $out = Join-Path $projectDir $appFile
+    if ([IO.File]::Exists($out)) {
+        $backup = Join-Path $stage 'previous.exe'
+        [IO.File]::Replace($binary,$out,$backup)
+        [IO.File]::Delete($backup)
+    } else {[IO.File]::Move($binary,$out)}
+    Get-Item -LiteralPath $out | Select-Object FullName,Length
+} finally {
+    foreach ($p in @($iconPath,$testBin,$binary)) {if ([IO.File]::Exists($p)) {[IO.File]::Delete($p)}}
+    if ([IO.Directory]::Exists($stage) -and [IO.Directory]::GetFileSystemEntries($stage).Length -eq 0) {[IO.Directory]::Delete($stage)}
+}
