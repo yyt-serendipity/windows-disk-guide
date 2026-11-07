@@ -12,11 +12,6 @@
     <SolidColorBrush x:Key="SelectionBrush" Color="#E7EEFD"/>
     <SolidColorBrush x:Key="TextBrush" Color="#20324A"/>
     <SolidColorBrush x:Key="SecondaryBrush" Color="#52687F"/>
-    <DrawingImage x:Key="DiskIcon"><DrawingImage.Drawing><DrawingGroup>
-      <GeometryDrawing Brush="#345BC1" Geometry="M4,0 H28 Q32,0 32,4 V28 Q32,32 28,32 H4 Q0,32 0,28 V4 Q0,0 4,0 Z"/>
-      <GeometryDrawing Brush="#FFFFFF" Geometry="M7,9 H23 L26,17 H4 Z M5,19 H25 V23 H5 Z"/>
-      <GeometryDrawing Brush="#8CE3D0" Geometry="M19,20 H23 V22 H19 Z"/>
-    </DrawingGroup></DrawingImage.Drawing></DrawingImage>
     <Style TargetType="Button">
       <Setter Property="Padding" Value="13,7"/><Setter Property="Margin" Value="0"/>
       <Setter Property="Background" Value="#FFFFFF"/><Setter Property="Foreground" Value="#263B54"/>
@@ -211,16 +206,15 @@
       <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent" Margin="24,20,24,12"/>
     </Grid></ControlTemplate>
   </Window.Resources>
-  <Window.Icon><StaticResource ResourceKey="DiskIcon"/></Window.Icon>
   <Grid x:Name="AppLayout" Background="{StaticResource CanvasBrush}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="0"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Grid.RowDefinitions><RowDefinition Height="80"/><RowDefinition Height="*"/><RowDefinition Height="38"/></Grid.RowDefinitions>
-    <Border x:Name="SideBackdrop" Grid.RowSpan="3" Background="#19395F" Visibility="Collapsed"><Image Source="{StaticResource DiskIcon}" Width="38" Height="38" VerticalAlignment="Top" Margin="0,20,0,0"/></Border>
+    <Border x:Name="SideBackdrop" Grid.RowSpan="3" Background="#19395F" Visibility="Collapsed"><Image Source="{DynamicResource DiskIcon}" Width="38" Height="38" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Top" Margin="0,20,0,0"/></Border>
     <Border Grid.Column="1" Background="White" BorderBrush="#E3EAF2" BorderThickness="0,0,0,1" Padding="24,0">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,19,0">
-          <Image x:Name="HeaderIcon" Width="32" Height="32" Source="{StaticResource DiskIcon}" Margin="0,0,11,0"/>
+          <Image x:Name="HeaderIcon" Width="32" Height="32" Source="{DynamicResource DiskIcon}" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,11,0"/>
           <StackPanel VerticalAlignment="Center"><TextBlock Text="磁盘清理助手" Foreground="#203652" FontSize="20" FontWeight="SemiBold"/>
             <TextBlock Text="找到占用，清理空间" Foreground="#60758E" FontSize="11" Margin="0,2,0,0"/></StackPanel>
         </StackPanel>

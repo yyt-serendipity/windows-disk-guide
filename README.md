@@ -16,7 +16,7 @@ C 盘快满了，却不知道该删什么？这个工具帮你看懂哪些东西
 
 这里整理的是**存文件的磁盘空间**，不是运行软件的内存。文件很大不等于可以删除；找不到可清理缓存，也不代表整个磁盘都没有能整理的东西。软件不会承诺一键清理所有内容。
 
-**下载**　到 [GitHub 发布页](https://github.com/yyt-serendipity/windows-disk-guide/releases/latest) 下载 `DiskGuide-1.9.0-windows.zip`，解压后双击 `磁盘清理助手.exe`。把同包的 `README.md` 和程序放在一起，可从窗口右下角「使用说明」离线阅读。
+**下载**　到 [GitHub 发布页](https://github.com/yyt-serendipity/windows-disk-guide/releases/latest) 下载 `DiskGuide-1.9.1-windows.zip`，解压后双击 `磁盘清理助手.exe`。把同包的 `README.md` 和程序放在一起，可从窗口右下角「使用说明」离线阅读。
 
 ## 我的电脑能用吗？
 
@@ -166,7 +166,7 @@ C 盘快满了，却不知道该删什么？这个工具帮你看懂哪些东西
 
 ## 具体怎样实现？
 
-模块链接对应仓库中的源码。阅读离线压缩包时，可在 [GitHub 的 v1.9.0 源码目录](https://github.com/yyt-serendipity/windows-disk-guide/tree/v1.9.0/源码) 中查看同一版本。
+模块链接对应仓库中的源码。阅读离线压缩包时，可在 [GitHub 的 v1.9.1 源码目录](https://github.com/yyt-serendipity/windows-disk-guide/tree/v1.9.1/源码) 中查看同一版本。
 
 | 模块 | 工作方式 |
 |---|---|
@@ -205,7 +205,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\Release.ps1"
 `-ExecutionPolicy Bypass` 只应用于这次启动的 PowerShell 进程。发布产物在 `dist` 中。可将下载文件的 SHA-256 与同一发布页的 `SHA256SUMS.txt` 对照，检查传输完整性。
 
 ```powershell
-Get-FileHash ".\DiskGuide-1.9.0-windows.zip" -Algorithm SHA256
+Get-FileHash ".\DiskGuide-1.9.1-windows.zip" -Algorithm SHA256
 ```
 
 发布包使用普通 Windows 桌面可执行文件，目前没有 Authenticode 代码签名。请从本仓库的 Releases 下载并核对校验值。维护者向 main 推送或提交拉取请求时，GitHub Actions 会在 Windows runner 上执行构建、测试和打包。CI 通过只说明该环境中的检查通过，其他 Windows 版本仍需分别验证。
@@ -217,6 +217,8 @@ Get-FileHash ".\DiskGuide-1.9.0-windows.zip" -Algorithm SHA256
 动画不代表完成百分比。官方卸载器打开后仍需按其提示操作，程序随后核查登记与残留；被占用、跳过、要求重启或无法确认的情况会保留说明，不以卸载器窗口关闭判断成功。多个操作分别跟踪，窗口最小化或关闭时停止动画；关闭 Windows 客户区动画时使用静态状态提示。
 
 ## 版本记录
+
+v1.9.1 使用新的蓝色磁盘清理图标，统一程序文件、窗口、任务栏和界面标识。Windows 图标内置多个尺寸，透明背景图片随程序嵌入，无需额外资源文件。
 
 v1.9.0 将开机启动分成已开启、已关闭、待确认，默认只看已开启的常见软件。计划任务与后台服务移到高级查看，不再混入默认列表和数量。未知状态保守归类，搜索与各类计数分开，并适配小窗口。
 

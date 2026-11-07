@@ -11,11 +11,12 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.9.0.0")]
+[assembly: AssemblyVersion("1.9.1.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -61,6 +62,14 @@ namespace DiskGuide
             using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Window.xaml"))
             using (var reader = XmlReader.Create(stream, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit }))
                 View = (Window)XamlReader.Load(reader);
+            using (var iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("AppIcon.png"))
+            {
+                var icon = new BitmapImage();
+                icon.BeginInit(); icon.CacheOption = BitmapCacheOption.OnLoad;
+                icon.StreamSource = iconStream; icon.DecodePixelWidth = 256; icon.EndInit(); icon.Freeze();
+                View.Resources["DiskIcon"] = icon;
+                View.Icon = icon;
+            }
             if (!(SynchronizationContext.Current is System.Windows.Threading.DispatcherSynchronizationContext))
                 SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(View.Dispatcher));
             Rect work = SystemParameters.WorkArea;

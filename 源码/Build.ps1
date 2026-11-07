@@ -18,25 +18,12 @@ $null = [IO.Directory]::CreateDirectory($stage)
 $appFile = '磁盘清理助手.exe'
 $binary = Join-Path $stage $appFile
 $testBin = Join-Path $stage 'Check.exe'
-$iconPath = Join-Path $stage 'disk.ico'
+$iconPath = Join-Path $PSScriptRoot 'Assets\app-icon.ico'
 try {
-    Add-Type -AssemblyName System.Drawing
-    $bmp = New-Object Drawing.Bitmap 64,64
-    $g = [Drawing.Graphics]::FromImage($bmp)
-    $g.Clear([Drawing.Color]::Transparent)
-    $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $blue = New-Object Drawing.SolidBrush ([Drawing.ColorTranslator]::FromHtml('#345BC1'))
-    $mint = New-Object Drawing.SolidBrush ([Drawing.ColorTranslator]::FromHtml('#8CE3D0'))
-    $g.FillRectangle($blue,3,3,58,58)
-    $g.FillPolygon([Drawing.Brushes]::White,[Drawing.Point[]]@([Drawing.Point]::new(16,17),[Drawing.Point]::new(47,17),[Drawing.Point]::new(53,33),[Drawing.Point]::new(10,33)))
-    $g.FillRectangle([Drawing.Brushes]::White,11,37,41,9)
-    $g.FillRectangle($mint,38,39,9,4)
-    $ico = [Drawing.Icon]::FromHandle($bmp.GetHicon())
-    $stream = [IO.File]::Create($iconPath)
-    try {$ico.Save($stream)} finally {$stream.Dispose();$ico.Dispose();$mint.Dispose();$blue.Dispose();$g.Dispose();$bmp.Dispose()}
     $common = @('/nologo','/optimize+','/warn:4','/codepage:65001','/platform:anycpu',
         ('/win32manifest:' + (Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:' + $iconPath),
         ('/resource:' + (Join-Path $PSScriptRoot 'Window.xaml') + ',Window.xaml'),
+        ('/resource:' + (Join-Path $PSScriptRoot 'Assets\app-icon.png') + ',AppIcon.png'),
         ('/r:' + (Join-Path $framework 'WPF\PresentationFramework.dll')),('/r:' + (Join-Path $framework 'WPF\PresentationCore.dll')),
         ('/r:' + (Join-Path $framework 'WPF\WindowsBase.dll')),('/r:' + (Join-Path $framework 'System.Xaml.dll')),
         (Join-Path $PSScriptRoot 'App.cs'),(Join-Path $PSScriptRoot 'Catalog.cs'),(Join-Path $PSScriptRoot 'Cleaner.cs'),
@@ -63,6 +50,6 @@ try {
     } else {[IO.File]::Move($binary,$out)}
     Get-Item -LiteralPath $out | Select-Object FullName,Length
 } finally {
-    foreach ($p in @($iconPath,$testBin,$binary)) {if ([IO.File]::Exists($p)) {[IO.File]::Delete($p)}}
+    foreach ($p in @($testBin,$binary)) {if ([IO.File]::Exists($p)) {[IO.File]::Delete($p)}}
     if ([IO.Directory]::Exists($stage) -and [IO.Directory]::GetFileSystemEntries($stage).Length -eq 0) {[IO.Directory]::Delete($stage)}
 }
