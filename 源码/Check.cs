@@ -461,6 +461,14 @@ namespace DiskGuide
             Expect(StartupInventory.ApprovalState(approved).Contains("已禁用"),"Startup disabled record");
             approved[0]=9;
             Expect(StartupInventory.ApprovalState(approved).Contains("未知") && StartupInventory.ApprovalState(null).Contains("未确认"),"Unknown startup state never implies enabled");
+            Expect(Enumerable.Range(0,16).All(code=>{
+                var value=new byte[12];value[0]=(byte)code;
+                var entry=new StartupEntry{Source="登录启动",State=StartupInventory.ApprovalState(value)};
+                return entry.Group==(code==2 ? StartupGroup.Enabled : code==3 ? StartupGroup.Disabled : StartupGroup.Unconfirmed);
+            }),"Only supported explicit approval encodings enter enabled and disabled categories");
+            Expect(new StartupEntry{Source="用户启动文件夹",State=StartupInventory.ApprovalState(null)}.Group==StartupGroup.Unconfirmed &&
+                new StartupEntry{Source="一次性登录启动",State="已登记 · 下次适用登录时执行"}.Group==StartupGroup.Unconfirmed,"Missing approval and one-time registrations remain unconfirmed");
+            Expect(new[]{"自动服务","计划任务 · 开机","计划任务 · 登录"}.All(source=>!Shell.MatchStartup(new StartupEntry{Source=source,State="已启用（系统记录）"},"",false,0)),"Services and boot tasks cannot enter common enabled counts even if marked enabled");
             Expect(StartupInventory.IsAutomaticUserService(2,16) && !StartupInventory.IsAutomaticUserService(2,1) && !StartupInventory.IsAutomaticUserService(3,16),"Only automatic Win32 services are listed");
             const string xml="<Task xmlns='http://schemas.microsoft.com/windows/2004/02/mit/task'><Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers><Actions><Exec><Command>sample.exe</Command><Arguments>--startup</Arguments></Exec></Actions></Task>";
             var task=StartupInventory.ParseTask(xml,"Example task",@"\Example",false,4);
@@ -794,7 +802,9 @@ namespace DiskGuide
         private static void VerifyManagementUi(Shell shell,string preview)
         {
             var startup=new StartupInventoryResult();
-            startup.Items.Add(new StartupEntry{Name="示例笔记",Source="登录启动",State="已禁用（系统记录）",Command=@"D:\Apps\ExampleNotes\notes.exe --startup",Location=@"HKCU\Software\Example"});
+            startup.Items.Add(new StartupEntry{Name="示例笔记",Source="登录启动",State="已启用（系统记录）",Command=@"D:\Apps\ExampleNotes\notes.exe --startup",Location=@"HKCU\Software\Example"});
+            startup.Items.Add(new StartupEntry{Name="已关闭的示例软件",Source="登录启动",State="已禁用（系统记录）",Command="closed.exe",Location=@"HKCU\Software\Closed"});
+            startup.Items.Add(new StartupEntry{Name="待确认的示例软件",Source="用户启动文件夹",State="已登记 · 启用状态未确认",Command="unknown.lnk",Location=@"D:\Fixture\Startup"});
             startup.Items.Add(new StartupEntry{Name="示例更新任务",Source="计划任务 · 登录",State="任务已禁用 · 当前运行中",Command="update.exe",Location=@"\Example\Update"});
             startup.Items.Add(new StartupEntry{Name="示例后台服务",Source="自动服务",State="自动（延迟启动）· 未读取运行状态",Command="service.exe",Location=@"HKLM\System\Example"});
             startup.Items[0].IconLocation=System.Reflection.Assembly.GetExecutingAssembly().Location;
@@ -807,18 +817,39 @@ namespace DiskGuide
             var w=shell.View;
             w.Width=1180;w.Height=800;
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
-            Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Count==1,"Startup defaults to common login apps");
+            Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Count==1,"Startup defaults to confirmed enabled common apps");
             Expect(!C<Expander>(w,"StartupDetails").IsExpanded && !C<Button>(w,"ServicesBtn").IsVisible,"Technical startup details and service controls stay out of the default view");
-            C<ComboBox>(w,"StartupKind").SelectedIndex=0;
+            Expect(C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().All(x=>!x.IsAdvanced && x.Group==StartupGroup.Enabled),"Default startup view excludes disabled, unknown and advanced records");
+            Expect(new[]{0,1,2}.All(i=>C<TextBlock>(w,"StartupStateCount"+i).Text=="1") && C<TextBlock>(w,"StartupCount").Text=="1 项","State counts include only common records and do not display the global inventory total");
+            Expect(!C<Grid>(w,"StartupAdvancedOptions").IsVisible,"Advanced categories stay hidden by default");
             Pump(()=>!Object.ReferenceEquals(startup.Items[0].Icon,AppIcons.Fallback),"Startup icon loads asynchronously after list binding");
             Expect(Descendants<System.Windows.Controls.Image>(C<DataGrid>(w,"StartupGrid")).Any(i=>Object.ReferenceEquals(i.Source,startup.Items[0].Icon)),"Startup row displays the resolved icon");
             Expect(C<StackPanel>(w,"DriveSwitcher").Visibility==Visibility.Collapsed,"Machine startup scope not falsely filtered by selected disk");
-            C<ComboBox>(w,"StartupKind").SelectedIndex=2;
+            var stateList=C<ListBox>(w,"StartupState");
+            stateList.SelectedIndex=1;
+            Expect(C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().Single().Group==StartupGroup.Disabled,"Closed category shows only confirmed disabled records");
+            C<TextBox>(w,"StartupSearch").Text="已关闭";Expect(C<DataGrid>(w,"StartupGrid").Items.Count==1,"Search recognizes the displayed plain-language status");C<TextBox>(w,"StartupSearch").Clear();
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"startup-disabled.png");
+            stateList.SelectedIndex=2;
+            Expect(C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().Single().Group==StartupGroup.Unconfirmed && C<TextBlock>(w,"StartupTitle").Text.Contains("待确认"),"Uncertain records remain distinct from enabled or disabled software");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"startup-unconfirmed.png");
+            C<Button>(w,"StartupAdvancedBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Expect(C<DataGrid>(w,"StartupGrid").Items.Count==1 && C<TextBlock>(w,"StartupTitle").Text.Contains("当前运行中"),"Startup source filter and running state detail");
+            Expect(!stateList.IsVisible && C<Grid>(w,"StartupAdvancedOptions").IsVisible && !C<Button>(w,"StartupSettingsBtn").IsVisible,"Advanced mode keeps task management separate from common software");
+            Pump(()=>C<DataGrid>(w,"StartupGrid").Columns.Where(c=>c.Visibility==Visibility.Visible).Sum(c=>c.ActualWidth)<=C<DataGrid>(w,"StartupGrid").ActualWidth,"Advanced startup columns fit after switching categories");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"startup-advanced.png");
+            C<ComboBox>(w,"StartupKind").SelectedIndex=1;
+            Expect(C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().Single().IsService && C<Button>(w,"ServicesBtn").IsVisible && !C<Button>(w,"TaskSettingsBtn").IsVisible,"Advanced services have their own list and management entry");
             C<TextBox>(w,"StartupSearch").Text="missing-entry";
             Expect(C<DataGrid>(w,"StartupGrid").Items.Count==0 && C<TextBlock>(w,"StartupEmpty").Visibility==Visibility.Visible,"Startup search has empty state");
-            C<TextBox>(w,"StartupSearch").Clear();C<ComboBox>(w,"StartupKind").SelectedIndex=0;
+            C<Button>(w,"StartupAdvancedBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Expect(stateList.SelectedIndex==2 && C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().Single().Group==StartupGroup.Unconfirmed && !C<Button>(w,"ServicesBtn").IsVisible,"Returning from advanced restores the common category and clears its search");
+            C<TextBox>(w,"StartupSearch").Text="not-found";
+            Expect(C<TextBlock>(w,"StartupCount").Text=="0 项" && C<TextBlock>(w,"StartupStateCount2").Text=="1","Searching does not overwrite category totals with filtered counts");
+            C<TextBox>(w,"StartupSearch").Clear();stateList.SelectedIndex=0;
             if(!String.IsNullOrWhiteSpace(preview)){Directory.CreateDirectory(preview);Image(w,preview,"startup.png");}
+            w.Width=810;w.Height=580;w.UpdateLayout();Pump(()=>C<DataGrid>(w,"StartupGrid").ActualHeight>100,"Compact startup categories leave usable list space");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"startup-compact.png");w.Width=1180;w.Height=800;
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
             Pump(()=>C<DataGrid>(w,"SoftwareGrid").Items.Count==2,"Software inventory binds fixtures without reading real installs");
             Pump(()=>!Object.ReferenceEquals(software.Items[0].Icon,AppIcons.Fallback),"Software icon loads asynchronously after list binding");
@@ -921,8 +952,7 @@ namespace DiskGuide
                 w.Width=1180;w.Height=800;
                 C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
                 Pump(()=>C<TextBlock>(w,"StartupCount").Text.EndsWith("项"),"Read-only startup inventory preview");
-                Expect(C<DataGrid>(w,"StartupGrid").Items.Count>0,"Real startup inventory binds without changes");
-                Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().Any(i=>!Object.ReferenceEquals(i.Icon,AppIcons.Fallback)),"Real startup icons load");
+                Expect(C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().All(i=>!i.IsAdvanced && i.Group==StartupGroup.Enabled),"Real default startup view contains only confirmed enabled common records");
                 Pump(()=>shell.IconsIdle,"Startup icon queue settles before local preview");
                 Image(w,preview,"startup-real.png");
                 C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");

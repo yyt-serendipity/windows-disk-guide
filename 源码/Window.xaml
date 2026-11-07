@@ -496,13 +496,34 @@
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <StackPanel x:Name="StartupHeader" Margin="0,0,0,14"><TextBlock x:Name="StartupHeading" Text="是谁随电脑一起启动？" Style="{StaticResource SectionTitle}"/>
             <TextBlock x:Name="StartupSubtitle" Text="不常用的软件可以关闭开机启动；不认识的系统服务先保留。" Style="{StaticResource Muted}" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
-          <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <Grid Margin="0,0,10,0"><TextBox x:Name="StartupSearch" Style="{StaticResource SearchField}" AutomationProperties.Name="搜索启动项"/>
               <TextBlock Text="搜索软件名称" Foreground="#607187" Margin="11,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ElementName=StartupSearch,Path=Text}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
-            <ComboBox x:Name="StartupKind" Grid.Column="1" SelectedIndex="1" Padding="8,5" VerticalContentAlignment="Center" AutomationProperties.Name="启动来源筛选">
-              <ComboBoxItem Content="所有启动方式"/><ComboBoxItem Content="常见开机软件"/><ComboBoxItem Content="其他启动任务"/><ComboBoxItem Content="系统后台服务"/>
-            </ComboBox>
+            <Button x:Name="StartupAdvancedBtn" Grid.Column="1" Content="高级查看" ToolTip="单独查看后台服务和计划任务"/>
             <TextBlock x:Name="StartupCount" Grid.Column="2" Text="尚未读取" Margin="14,0,2,0" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
+            <ListBox x:Name="StartupState" Grid.Row="1" Grid.ColumnSpan="3" SelectedIndex="0" AutomationProperties.Name="按开机启动状态分类" Margin="0,10,0,0"
+                     Background="Transparent" BorderThickness="0" Padding="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+              <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+                <Setter Property="Foreground" Value="#425974"/><Setter Property="Padding" Value="14,6"/><Setter Property="Margin" Value="0,0,8,0"/><Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="stateTab" Background="White" BorderBrush="#CCD8E4" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="stateTab" Property="Background" Value="#EAF1FC"/></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="White"/><Setter TargetName="stateTab" Property="Background" Value="#2864CC"/><Setter TargetName="stateTab" Property="BorderBrush" Value="#2864CC"/></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="stateTab" Property="BorderBrush" Value="#133C77"/><Setter TargetName="stateTab" Property="BorderThickness" Value="2"/></Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+              </Style></ListBox.ItemContainerStyle>
+              <ListBoxItem AutomationProperties.Name="已开启"><StackPanel Orientation="Horizontal"><TextBlock Text="已开启"/><TextBlock x:Name="StartupStateCount0" Text="—" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel></ListBoxItem>
+              <ListBoxItem AutomationProperties.Name="已关闭"><StackPanel Orientation="Horizontal"><TextBlock Text="已关闭"/><TextBlock x:Name="StartupStateCount1" Text="—" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel></ListBoxItem>
+              <ListBoxItem AutomationProperties.Name="待确认"><StackPanel Orientation="Horizontal"><TextBlock Text="待确认"/><TextBlock x:Name="StartupStateCount2" Text="—" FontWeight="SemiBold" Margin="8,0,0,0"/></StackPanel></ListBoxItem>
+            </ListBox>
+            <Grid x:Name="StartupAdvancedOptions" Grid.Row="1" Grid.ColumnSpan="3" Visibility="Collapsed" Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <ComboBox x:Name="StartupKind" SelectedIndex="0" AutomationProperties.Name="高级启动类别"><ComboBoxItem Content="计划任务"/><ComboBoxItem Content="后台服务"/></ComboBox>
+              <TextBlock Grid.Column="1" Text="高级记录单独统计，不等于开机软件数量。" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </Grid>
           </Grid>
           <Border Grid.Row="2" Style="{StaticResource Frame}" Padding="1"><Grid>
             <DataGrid x:Name="StartupGrid" AutomationProperties.Name="开机启动列表" RowHeight="44">
@@ -512,13 +533,13 @@
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" VerticalAlignment="Center"/></DockPanel>
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="来源" Binding="{Binding Source}" Width="150" ElementStyle="{StaticResource CellText}"/>
-                <DataGridTextColumn Header="启动设置" Binding="{Binding State}" Width="170" ElementStyle="{StaticResource CellText}"/>
+                <DataGridTextColumn Header="状态" Binding="{Binding DisplayState}" Width="110" ElementStyle="{StaticResource CellText}"/>
                 <DataGridTextColumn Header="启动命令" Binding="{Binding Command}" Visibility="Collapsed" Width="2*" MinWidth="140" ElementStyle="{StaticResource CellText}"/>
               </DataGrid.Columns>
             </DataGrid>
-            <TextBlock x:Name="StartupEmpty" Text="正在读取启动项…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False"/>
+            <TextBlock x:Name="StartupEmpty" Text="正在读取启动项…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False" TextWrapping="Wrap" MaxWidth="460" Margin="16"/>
           </Grid></Border>
-          <Border Grid.Row="3" Style="{StaticResource Frame}" Padding="15,12" Margin="0,10,0,0">
+          <Border x:Name="StartupDetailCard" Grid.Row="3" Style="{StaticResource Frame}" Padding="15,12" Margin="0,10,0,0">
             <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <TextBlock x:Name="StartupTitle" Text="选择一条启动记录" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis"/>
               <Expander x:Name="StartupDetails" Grid.Row="1" Header="查看启动位置和命令" FontSize="12" Margin="0,6,0,5">

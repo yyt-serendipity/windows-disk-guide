@@ -9,6 +9,7 @@ using Microsoft.Win32;
 
 namespace DiskGuide
 {
+    internal enum StartupGroup { Enabled, Disabled, Unconfirmed }
     internal sealed class StartupEntry : IconEntry
     {
         public string Name { get; set; }
@@ -17,6 +18,17 @@ namespace DiskGuide
         public string Command { get; set; }
         public string Location { get; set; }
         public string Publisher { get; set; }
+        public bool IsTask { get { return Source!=null && Source.StartsWith("计划任务",StringComparison.Ordinal); } }
+        public bool IsService { get { return Source=="自动服务"; } }
+        public bool IsAdvanced { get { return IsTask || IsService; } }
+        public StartupGroup Group { get {
+            // Only explicitly recognized approval states count as enabled/disabled.
+            // Registration, running state and unknown encodings are not evidence of either.
+            if(!IsAdvanced && State=="已启用（系统记录）")return StartupGroup.Enabled;
+            if(!IsAdvanced && State=="已禁用（系统记录）")return StartupGroup.Disabled;
+            return StartupGroup.Unconfirmed;
+        } }
+        public string DisplayState { get { return IsAdvanced ? State : Group==StartupGroup.Enabled ? "已开启" : Group==StartupGroup.Disabled ? "已关闭" : "待确认"; } }
     }
 
     internal sealed class StartupInventoryResult

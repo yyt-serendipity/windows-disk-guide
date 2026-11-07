@@ -20,6 +20,7 @@ namespace DiskGuide
         private SoftwareEntry pendingUninstall;
         private SoftwareEntry unconfirmedUninstall;
         private ResidualPlan uninstallResidual;
+        private bool startupAdvanced;
         private bool OnStartup { get { return tabs.SelectedItem == Get<TabItem>("StartupTab"); } }
         private bool OnSoftware { get { return tabs.SelectedItem == Get<TabItem>("SoftwareTab"); } }
 
@@ -30,6 +31,12 @@ namespace DiskGuide
             ArrangeManagement();
             Get<TextBox>("StartupSearch").TextChanged += delegate { BindStartup(); };
             Get<ComboBox>("StartupKind").SelectionChanged += delegate { BindStartup(); };
+            Get<ListBox>("StartupState").SelectionChanged += delegate { BindStartup(); };
+            Get<Button>("StartupAdvancedBtn").Click+=delegate {
+                startupAdvanced=!startupAdvanced;
+                Get<TextBox>("StartupSearch").Clear();
+                BindStartup();
+            };
             Get<DataGrid>("StartupGrid").SelectionChanged += delegate { ShowStartup(); };
             Get<TextBox>("SoftwareSearch").TextChanged += delegate { BindSoftware(); };
             Get<ComboBox>("SoftwareKind").SelectionChanged += delegate { BindSoftware(); };
@@ -45,6 +52,12 @@ namespace DiskGuide
         private void ArrangeManagement()
         {
             bool small = (View.ActualHeight > 0 ? View.ActualHeight : View.Height) < 680;
+            Get<Border>("StartupDetailCard").Padding=new Thickness(15,small?6:12,15,small?6:12);
+            var startupDetails=Get<Expander>("StartupDetails");
+            Grid.SetRow(startupDetails,small?3:1);
+            startupDetails.HorizontalAlignment=small ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
+            startupDetails.Width=small?280:Double.NaN;
+            startupDetails.Margin=small?new Thickness(0):new Thickness(0,6,0,5);
             Get<Border>("SoftwareDetailCard").Padding=new Thickness(15,small?6:12,15,small?6:12);
             Get<TextBlock>("SoftwareNotice").Visibility=small && Get<ScrollViewer>("UninstallResult").Visibility==Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
             Get<ScrollViewer>("UninstallResult").MaxHeight=small?76:110;
@@ -87,7 +100,7 @@ namespace DiskGuide
             startupLoading = true;
             Activity("startup","正在读取开机启动项…");
             Label("StartupCount", "读取中…");
-            Label("StartupEmpty", "正在读取登录项、计划任务和服务…");
+            Label("StartupEmpty", "正在读取开机启动设置…");
             Get<TextBlock>("StartupEmpty").Visibility = Visibility.Visible;
             try
             {
@@ -99,37 +112,49 @@ namespace DiskGuide
             finally
             {
                 startupLoading = false;
-                EndActivity("startup",startupInventory.Warnings.Count>0 ? "启动项读取不完整，请查看页面提示" : "启动项已读取 · "+startupInventory.Items.Count+" 项",startupInventory.Warnings.Count>0);
+                EndActivity("startup",startupInventory.Warnings.Count>0 ? "启动项读取不完整，请查看页面提示" : "开机启动信息已更新",startupInventory.Warnings.Count>0);
                 if (!lifetime.IsCancellationRequested) { BindStartup(); QueueIcons(startupInventory.Items,true); }
             }
         }
         private static bool HasText(string value, string term)
         { return !String.IsNullOrEmpty(value) && value.IndexOf(term, StringComparison.CurrentCultureIgnoreCase) >= 0; }
-        internal static bool MatchStartup(StartupEntry item, string term, int kind)
+        internal static bool MatchStartup(StartupEntry item, string term, bool advanced, int category)
         {
-            bool task = HasText(item.Source, "计划任务"), service = HasText(item.Source, "自动服务");
-            return (kind == 0 || kind == 1 && !task && !service || kind == 2 && task || kind == 3 && service) &&
-                (String.IsNullOrWhiteSpace(term) || HasText(item.Name, term) || HasText(item.Command, term) || HasText(item.Source, term) || HasText(item.Location, term) || HasText(item.State, term));
+            return (advanced ? (category==0 ? item.IsTask : category==1 && item.IsService) : !item.IsAdvanced && (int)item.Group==category) &&
+                (String.IsNullOrWhiteSpace(term) || HasText(item.Name, term) || HasText(item.Command, term) || HasText(item.Source, term) || HasText(item.Location, term) || HasText(item.State, term) || HasText(item.DisplayState,term));
         }
         private void BindStartup()
         {
             var grid = Get<DataGrid>("StartupGrid");
             var old = grid.SelectedItem as StartupEntry;
-            var items = startupInventory.Items.Where(x => MatchStartup(x, Get<TextBox>("StartupSearch").Text.Trim(), Get<ComboBox>("StartupKind").SelectedIndex)).ToList();
+            int category=startupAdvanced ? Get<ComboBox>("StartupKind").SelectedIndex : Get<ListBox>("StartupState").SelectedIndex;
+            string term=Get<TextBox>("StartupSearch").Text.Trim();
+            var items = startupInventory.Items.Where(x => MatchStartup(x,term,startupAdvanced,category)).ToList();
+            Get<ListBox>("StartupState").Visibility=startupAdvanced ? Visibility.Collapsed : Visibility.Visible;
+            Get<Grid>("StartupAdvancedOptions").Visibility=startupAdvanced ? Visibility.Visible : Visibility.Collapsed;
+            Get<Button>("StartupAdvancedBtn").Content=startupAdvanced ? "返回常见软件" : "高级查看";
+            Label("StartupHeading",startupAdvanced ? "高级查看：后台启动记录" : "哪些软件会开机启动？");
+            Label("StartupSubtitle",startupAdvanced ? "计划任务与后台服务单独查看，不计入常见软件数量。" : "默认只看已开启的软件。待确认的记录不代表已经开启。");
+            for(int i=0;i<3;i++)Label("StartupStateCount"+i,!startupLoaded && startupLoading ? "…" : startupInventory.Items.Count(x=>!x.IsAdvanced && (int)x.Group==i).ToString());
+            grid.Columns[1].Visibility=startupAdvanced ? Visibility.Visible : Visibility.Collapsed;
+            grid.Columns[2].Width=new DataGridLength(startupAdvanced ? 280 : 110);
             grid.ItemsSource = items;
             grid.SelectedItem = items.FirstOrDefault(x => old != null && x.Location == old.Location && x.Name == old.Name) ?? items.FirstOrDefault();
-            Label("StartupCount", items.Count + " / " + startupInventory.Items.Count + " 项");
-            Label("StartupEmpty", startupLoading ? "正在读取启动项…" : "没有匹配项。可清空搜索或切换启动来源。");
+            Label("StartupCount",startupLoading ? "读取中…" : items.Count+" 项");
+            string empty=term.Length>0 ? "没有匹配项，试试清空搜索。" : startupAdvanced ? "这一类别暂未找到记录。" : category==0 ? "没有确认已开启的软件。可查看「待确认」或到 Windows 设置核对。" : category==1 ? "暂未找到已关闭的记录。" : "暂未找到待确认的记录。";
+            Label("StartupEmpty", startupLoading ? "正在读取启动项…" : empty);
             Get<TextBlock>("StartupEmpty").Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            SetNotice("StartupNotice", startupInventory.Warnings, "关闭开机启动不会卸载软件，需要时仍可手动打开。这里不一定能找到所有启动方式。");
-            Get<Button>("TaskSettingsBtn").Visibility=Get<ComboBox>("StartupKind").SelectedIndex==2 ? Visibility.Visible : Visibility.Collapsed;
-            Get<Button>("ServicesBtn").Visibility=Get<ComboBox>("StartupKind").SelectedIndex==3 ? Visibility.Visible : Visibility.Collapsed;
+            SetNotice("StartupNotice", startupInventory.Warnings,startupAdvanced ? "这些是后台启动记录，不等于正在运行的软件。不确定用途时请保留。" : "这里只统计识别到的常见软件。待确认不代表已开启；关闭开机启动不会卸载软件。");
+            Get<Button>("StartupSettingsBtn").Visibility=startupAdvanced ? Visibility.Collapsed : Visibility.Visible;
+            Get<Button>("StartupSettingsBtn").Content=category==0 ? "去关闭开机启动" : "打开 Windows 启动设置";
+            Get<Button>("TaskSettingsBtn").Visibility=startupAdvanced && category==0 ? Visibility.Visible : Visibility.Collapsed;
+            Get<Button>("ServicesBtn").Visibility=startupAdvanced && category==1 ? Visibility.Visible : Visibility.Collapsed;
             ShowStartup();
         }
         private void ShowStartup()
         {
             var item = Get<DataGrid>("StartupGrid").SelectedItem as StartupEntry;
-            Label("StartupTitle", item == null ? "选择一条启动记录" : item.Name + "  ·  " + item.State);
+            Label("StartupTitle", item == null ? "选择一条记录查看详情" : item.Name + "  ·  " + item.DisplayState);
             Get<TextBlock>("StartupTitle").ToolTip = item == null ? null : item.Name + " · " + item.State;
             Get<TextBox>("StartupDetail").Text = item == null ? "在上方搜索应用名，查看它通过什么方式随电脑启动。" : "设置：" + item.State + "\n来源：" + item.Location + "\n命令：" + item.Command;
         }
