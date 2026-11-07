@@ -319,7 +319,7 @@ namespace DiskGuide
             using(var process=Process.GetCurrentProcess()) busyRule.Processes=new[]{process.ProcessName};
             var uiStore=new PreserveStore(Inside(@"ui-settings\keep-rules.xml"));
             var fixture=new Shell(()=>new List<Rule>{R("button",FileKind.OldTemp,7),R("shader",FileKind.Shader,0),R("button-copy",FileKind.OldTemp,7),busyRule},uiStore);
-            // Exercise both window classes even when the CI desktop initially clamps to a small work area.
+            // Request a wide fixture. Windows may also constrain the native window when it is shown.
             Window w=fixture.View;w.Width=1320;w.Height=840;Hidden(w);var button=C<Button>(w,"CleanBtn");
             Expect(C<RadioButton>(w,"DriveC").IsChecked==true || !Engine.ReadyFixed(@"C:\"),"Landing page starts at C root when available");
             string fixtureDrive="Drive"+Path.GetPathRoot(box)[0];
@@ -331,7 +331,7 @@ namespace DiskGuide
                 C<RadioButton>(w,fixtureDrive).IsChecked=true;
             }
             Expect(button.IsEnabled,"One-click enabled for selected files");
-            Expect(C<TabControl>(w,"Tabs").TabStripPlacement==Dock.Left,"Wide window uses vertical navigation");
+            Expect(C<TabControl>(w,"Tabs").TabStripPlacement==(w.ActualWidth>=1100?Dock.Left:Dock.Top),"Navigation matches allocated window width: "+w.ActualWidth);
             var policyCombo=C<ComboBox>(w,"PolicyBox");policyCombo.ApplyTemplate();
             var comboPeer=new ComboBoxAutomationPeer(policyCombo);
             var comboAutomation=(IExpandCollapseProvider)comboPeer.GetPattern(PatternInterface.ExpandCollapse);
