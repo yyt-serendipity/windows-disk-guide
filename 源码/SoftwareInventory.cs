@@ -28,7 +28,7 @@ namespace DiskGuide
         public string Status { get { return CanUninstall ? "可调用官方卸载" : "保留 / 系统管理"; } }
         internal RegistryHive Hive;
         internal RegistryView View;
-        internal string KeyName, PackageFullName;
+        internal string KeyName, PackageFullName, PackageFamilyName;
         internal bool Msi;
     }
 
@@ -163,7 +163,7 @@ Get-AppxPackage | ForEach-Object {
  $p=$_
  $display=$names[$p.PackageFamilyName]
  if([string]::IsNullOrWhiteSpace($display)) {$display=$p.Name}
- $fields=@($display,$p.Publisher,$p.Version.ToString(),$p.InstallLocation,$p.PackageFullName,[string]$p.IsFramework,[string]$p.NonRemovable,[string]$p.IsResourcePackage)
+ $fields=@($display,$p.Publisher,$p.Version.ToString(),$p.InstallLocation,$p.PackageFullName,[string]$p.IsFramework,[string]$p.NonRemovable,[string]$p.IsResourcePackage,$p.PackageFamilyName)
  (($fields | ForEach-Object {[Convert]::ToBase64String($enc.GetBytes([string]$_))}) -join ""`t"")
 }";
 
@@ -174,14 +174,14 @@ Get-AppxPackage | ForEach-Object {
             foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 string[] values = line.Split('\t');
-                if (values.Length != 8) throw new InvalidDataException("商店应用输出格式不完整。");
+                if (values.Length != 9) throw new InvalidDataException("商店应用输出格式不完整。");
                 for (int i = 0; i < values.Length; i++) values[i] = Encoding.UTF8.GetString(Convert.FromBase64String(values[i]));
                 if (String.IsNullOrEmpty(values[4])) throw new InvalidDataException("商店应用缺少包标识。");
                 result.Add(new SoftwareEntry {
                     Name = values[0], Publisher = values[1], Version = values[2], InstallPath = NormalizePath(values[3]),
-                    Id = "Appx|" + values[4], PackageFullName = values[4], Kind = "商店应用", SizeText = "未登记",
+                    Id = "Appx|" + values[4], PackageFullName = values[4], PackageFamilyName = values[8], Kind = "商店应用", SizeText = "未登记",
                     UninstallCommand = "Remove-AppxPackage（当前用户）",
-                    ProtectionReason = values.Skip(5).Any(v => String.Equals(v, "True", CI)) ? "系统、框架或资源包，不在本工具中卸载。" : null
+                    ProtectionReason = values.Skip(5).Take(3).Any(v => String.Equals(v, "True", CI)) ? "系统、框架或资源包，不在本工具中卸载。" : null
                 });
             }
             return result;

@@ -182,6 +182,7 @@ namespace DiskGuide
                 "发布者：" + item.Publisher + "  ·  " + item.Kind + "\n安装位置：" + (String.IsNullOrWhiteSpace(item.InstallPath) ? "未登记" : item.InstallPath) +
                 "\n" + (item.CanUninstall ? "先运行官方卸载，再核查独占安装目录的残留。个人数据与共享组件不按名称删除。" : item.ProtectionReason);
             Get<Button>("UninstallBtn").IsEnabled = !softwareLoading && !uninstallLaunching && pendingUninstall == null && item != null && item.CanUninstall;
+            Get<Button>("SoftwareSpaceBtn").IsEnabled = !softwareLoading && item != null;
         }
 
         private async Task BeginUninstall()

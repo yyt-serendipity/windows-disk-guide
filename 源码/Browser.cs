@@ -311,6 +311,7 @@ namespace DiskGuide
             Get<Button>("SizeBtn").Content = measuring == null ? (f != null && f.Measured != null ? "重新统计" : "统计") : "取消";
             Get<Button>("SizeBtn").IsEnabled = f != null && !f.IsLink && !busy;
             Get<Button>("OpenBtn").IsEnabled = f != null && !f.IsLink;
+            Get<Button>("FolderRankBtn").IsEnabled = f != null && !f.IsLink && !busy;
             Get<Button>("RelatedBtn").IsEnabled = !busy && f != null && f.Related.Count != 0;
             Get<Button>("RelatedBtn").Content = f != null && f.Related.Count > 0 ? "查看清理项 (" + f.Related.Count + ")" : "查看清理项";
             string note = progressText;

@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -70,11 +70,14 @@ namespace DiskGuide
             clean = Get<Button>("CleanBtn");
             WireBrowser();
             WireManagement();
+            WireSpace();
+            Get<Button>("PreviewFilesBtn").Click += delegate { PreviewFiles(); };
             Get<Button>("GuideBtn").Click += delegate { OpenGuide(); };
             View.Loaded += async delegate { await Refresh(false); };
-            View.Closed += delegate { lifetime.Cancel(); StopBrowser(); };
+            View.Closed += delegate { lifetime.Cancel(); StopBrowser(); StopRanking(); };
             refresh.Click += async delegate {
-                if (OnStartup) await LoadStartup();
+                if (OnRanking) await ScanRanking();
+                else if (OnStartup) await LoadStartup();
                 else if (OnSoftware) await LoadSoftware();
                 else await Refresh(false);
             };
@@ -87,6 +90,7 @@ namespace DiskGuide
             tabs.SelectionChanged += delegate(object sender, SelectionChangedEventArgs e) {
                 if (e.Source != tabs) return;
                 UpdateNavigation();
+                if (!OnRanking) StopRanking();
                 if (OnFolders) ShowBrowser();
                 else
                 {
@@ -150,6 +154,7 @@ namespace DiskGuide
             cleanScopePath = null;
             cleanFilter.SelectedIndex = 0;
             ResetBrowser();
+            ResetRanking();
             BindClean();
         }
         private bool InArea(ScanRow row)
@@ -207,9 +212,9 @@ namespace DiskGuide
         }
         private void Summary()
         {
-            var selected = rows.Where(r => InScope(r) && r.Pick && r.CanPick).ToList();
-            Label("ChosenSize", Engine.Size(selected.Sum(r => r.Bytes)));
-            Label("ChosenCount", selected.Count + " 项，共 " + selected.Sum(r => (long)r.Files.Count).ToString("N0") + " 个文件");
+            var selected = rows.Where(r => InScope(r) && r.Pick && r.CanPick && r.SelectedCount > 0).ToList();
+            Label("ChosenSize", Engine.Size(selected.Sum(r => r.SelectedBytes)));
+            Label("ChosenCount", selected.Count + " 项，共 " + selected.Sum(r => (long)r.SelectedCount).ToString("N0") + " 个文件");
             clean.ToolTip = selected.Count == 0 ? "先在当前类别中勾选可处理的文件。" :
                 "只处理当前磁盘、目录和类别中已勾选的 " + selected.Count + " 项。";
             clean.IsEnabled = !busy && selected.Count > 0;
@@ -219,14 +224,17 @@ namespace DiskGuide
             var row = cleanGrid.SelectedItem as ScanRow;
             Label("CleanWhy", row == null ? "选择项目可查看清理条件。" : row.Detail);
             Label("CleanPath", row == null ? "" : row.PathText);
+            Get<Button>("PreviewFilesBtn").IsEnabled = !busy && row != null && row.Files.Count > 0;
+            if (row != null && row.SelectedCount != row.Files.Count) Label("CleanWhy", row.Detail + "  已排除 " + (row.Files.Count - row.SelectedCount) + " 个文件。");
         }
 
         private async Task Refresh(bool delete)
         {
             if (busy) return;
-            var chosen = rows.Where(r => InScope(r) && r.CanPick && r.Pick).ToList();
+            var chosen = rows.Where(r => InScope(r) && r.CanPick && r.Pick && r.SelectedCount > 0).ToList();
             if (delete && chosen.Count == 0) return;
             var previous = rows.Where(r => r.CanPick).ToDictionary(r => r.Rule.Path, r => r.Pick, StringComparer.OrdinalIgnoreCase);
+            var excluded = new HashSet<string>(rows.SelectMany(r => r.Files).Where(f => !f.Included).Select(f => f.Identity), StringComparer.OrdinalIgnoreCase);
             busy = true;
             StopBrowser();
             cleanGrid.IsEnabled = false;
@@ -234,6 +242,7 @@ namespace DiskGuide
             Get<Button>("ClearScopeBtn").IsEnabled = false;
             refresh.IsEnabled = false;
             clean.IsEnabled = false;
+            Get<Button>("PreviewFilesBtn").IsEnabled = false;
             ShowDrives();
             Status(delete ? "正在清理勾选的文件…" : "正在扫描已识别的缓存目录…");
             string final = null;
@@ -256,6 +265,7 @@ namespace DiskGuide
                 rows = snapshot.Item2;
                 foreach (var row in rows)
                 {
+                    foreach (var file in row.Files) file.Included = !excluded.Contains(file.Identity);
                     string last;
                     if (outcomes.TryGetValue(row.Rule.Path, out last)) row.Previous = last;
                     bool picked;

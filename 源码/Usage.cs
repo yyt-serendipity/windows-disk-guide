@@ -15,6 +15,7 @@ namespace DiskGuide
         public long Bytes, Files;
         public int Skipped;
         public double Percent { get; set; }
+        public long SizeBytes { get { return Readable ? Bytes : -1; } }
         public string SizeText { get { return Readable ? (Skipped > 0 ? "≥ " : "") + Engine.Size(Bytes) : "访问受限"; } }
     }
 
@@ -22,6 +23,9 @@ namespace DiskGuide
     {
         public readonly UsagePart Total = new UsagePart();
         public readonly List<UsagePart> Children = new List<UsagePart>();
+        public readonly List<UsagePart> LargestFiles = new List<UsagePart>();
+        public static FolderUsage ReadRanking(string path, CancellationToken token, Action<long, long> report)
+        { return ReadLevel(path, token, report, true); }
         private List<UsagePart> breakdown;
         public List<UsagePart> Largest
         {
@@ -64,7 +68,7 @@ namespace DiskGuide
         }
 
         // Attribute each file to its first-level child in the same walk used for the total.
-        private static FolderUsage ReadLevel(string path, CancellationToken token, Action<long, long> report)
+        private static FolderUsage ReadLevel(string path, CancellationToken token, Action<long, long> report, bool rankFiles = false)
         {
             var result = new FolderUsage();
             var total = result.Total;
@@ -122,6 +126,7 @@ namespace DiskGuide
                                     part.Bytes += bytes;
                                     total.Bytes += bytes;
                                     total.Files++;
+                                    if (rankFiles) KeepLargest(result.LargestFiles, new UsagePart { Name = item.Name, PathText = item.FullName, Readable = true, Bytes = bytes, Files = 1 });
                                 }
                             }
                             catch (Exception ex)
@@ -150,6 +155,13 @@ namespace DiskGuide
             foreach (var child in result.Children)
                 child.Percent = total.Bytes == 0 ? 0 : 100.0 * child.Bytes / total.Bytes;
             return result;
+        }
+        private static void KeepLargest(List<UsagePart> top, UsagePart file)
+        {
+            if (top.Count == 100 && (file.Bytes < top[99].Bytes || file.Bytes == top[99].Bytes && StringComparer.OrdinalIgnoreCase.Compare(file.PathText, top[99].PathText) >= 0)) return;
+            int index = top.FindIndex(x => x.Bytes < file.Bytes || x.Bytes == file.Bytes && StringComparer.OrdinalIgnoreCase.Compare(x.PathText, file.PathText) > 0);
+            top.Insert(index < 0 ? top.Count : index, file);
+            if (top.Count > 100) top.RemoveAt(100);
         }
     }
 }

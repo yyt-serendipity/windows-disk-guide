@@ -295,6 +295,7 @@ namespace DiskGuide
             Pump(()=>w.ActualWidth<=811 && list.ActualHeight>=220 && list.Columns[0].ActualWidth>list.ActualWidth*0.48 && list.Columns[1].ActualWidth>=82,"Compact table keeps folder and policy labels readable");
             Expect(Grid.GetColumn(C<Border>(w,"DetailPane"))==2,"Short window keeps room for list rows");
             VerifyManagementUi(fixture, preview);
+            VerifySpaceUi(fixture, preview);
             w.Close();
 
             if (!String.IsNullOrWhiteSpace(preview)) SaveRealPreviews(preview);
@@ -340,6 +341,114 @@ namespace DiskGuide
             var approvedPlan=new ResidualPlan{CanRecycle=true};approvedPlan.Manifest.Add(identity);
             var newPlan=new ResidualPlan{CanRecycle=true};newPlan.Manifest.Add(SoftwareInventory.ReadIdentity(identityFile,false));
             Expect(!SoftwareInventory.MatchesApproved(approvedPlan,newPlan),"Changed residual identity invalidates approval");
+        }
+
+        private static void VerifySpace()
+        {
+            for(int i=1;i<=110;i++)Put("rank\\file-"+i.ToString("000")+".bin",new string('x',i),false);
+            Put(@"rank\child\small.bin","abc",false);
+            Junction(Inside(@"rank\linked"),Inside("decoy"));
+            var ranking=FolderUsage.ReadRanking(Inside("rank"),CancellationToken.None,null);
+            Expect(ranking.Total.Bytes==6108 && ranking.Total.Files==111 && ranking.Total.Skipped==1,"Ranking covers root files and descendants but excludes links");
+            Expect(ranking.LargestFiles.Count==100 && ranking.LargestFiles.First().Bytes==110 && ranking.LargestFiles.Last().Bytes==11,"Largest file list is bounded and correctly ordered");
+            Expect(ranking.Children.Single(x=>x.PathText!=null).Name=="child","Folder ranking keeps exact first-level groups");
+            bool cancelled=false;try{FolderUsage.ReadRanking(Inside("rank"),new CancellationToken(true),null);}catch(OperationCanceledException){cancelled=true;}
+            Expect(cancelled,"Ranking honors cancellation");
+            Put(@"app-space\program.dll","12345",false);Put(@"app-space\cache\cache.bin","123",false);
+            Junction(Inside("app-alias"),Inside("app-space"));
+            var locations=new[]{new AppLocation{Category="安装文件",SourcePath=Inside("app-space"),Confirmed=true},
+                new AppLocation{Category="别名",SourcePath=Inside("app-alias"),Confirmed=false},
+                new AppLocation{Category="缓存",SourcePath=Inside(@"app-space\cache"),Confirmed=false}};
+            var report=AppSpace.Read(locations,CancellationToken.None,null);
+            string drive=Path.GetPathRoot(box).TrimEnd('\\');
+            Expect(report.Bytes(drive,true)==8 && report.Bytes(drive,false)==0,"Software alias and nested cache are not double counted");
+            Expect(report.Locations[1].PathText==Inside("app-space") && report.Locations[2].Usage.Bytes==3 && !report.Locations[2].Counted,"Physical target and nested measured size remain visible");
+            var repeat=AppSpace.Read(locations,CancellationToken.None,null);
+            Expect(repeat.Bytes(drive,true)==8,"Repeat measurement resets accounting state");
+            Expect(AppSpace.IsSharedRoot(Path.GetPathRoot(box)) && AppSpace.IsSharedRoot(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)),"Shared root cannot count as one software footprint");
+            var inventory=new SoftwareInventoryResult();
+            var app=new SoftwareEntry{Name="Example",Id="fixture",InstallPath=Inside("app-space")};inventory.Items.Add(app);
+            inventory.Items.Add(new SoftwareEntry{Id="shared",InstallPath=Inside(@"app-space\cache")});
+            Expect(!AppSpace.Locate(app,inventory,new List<Rule>()).Single().Confirmed,"Overlapping installation records are not exclusive attribution");
+            var unknown=new SoftwareEntry{Name="Unknown Portable",Id="unknown"};
+            Expect(AppSpace.Locate(unknown,inventory,new List<Rule>()).Count==0,"Unknown app names do not trigger guessed folder scans");
+            var package=new SoftwareEntry{Name="Example Store",PackageFullName="example",PackageFamilyName="example_publisher"};
+            var located=AppSpace.Locate(package,inventory,new List<Rule>());
+            Expect(located.Count==1 && located[0].Confirmed && located[0].SourcePath.EndsWith(@"Packages\example_publisher"),"Store data uses exact package family identity");
+            string deleted=Put(@"file-choice\remove.tmp","delete",true),kept=Put(@"file-choice\keep.tmp","keep",true);
+            var rule=R("file-choice",FileKind.OldTemp,7);var row=Engine.Scan(new[]{rule},CancellationToken.None).Single();
+            var choices=row.Files.Select(x=>new FileChoice(x)).ToList();choices.Single(x=>x.PathText==kept).Included=false;
+            Expect(row.SelectedCount==2,"Preview draft cannot change cleanup before Save");
+            Shell.ApplyChoices(choices);Expect(row.SelectedCount==1 && row.SelectedBytes==6,"Saved file exclusions change selected count and bytes");
+            var result=Engine.Clean(new[]{row},CancellationToken.None)[rule.Path];
+            Expect(result.Removed==1 && result.Skipped==0 && !File.Exists(deleted) && File.Exists(kept),"Cleaner preserves excluded file and does not report it as failed");
+        }
+
+        private static System.Collections.Generic.IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject
+        {
+            if(root is T)yield return (T)root;
+            for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)foreach(var child in Descendants<T>(VisualTreeHelper.GetChild(root,i)))yield return child;
+        }
+        private static void InspectModal(Window owner,Action launch,Action<Window> verify)
+        {
+            Exception failure=null;bool seen=false;
+            var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(100)};
+            timer.Tick+=delegate{
+                var modal=Application.Current.Windows.Cast<Window>().FirstOrDefault(x=>x.Owner==owner && x.IsVisible);
+                if(modal==null)return;timer.Stop();seen=true;
+                try{verify(modal);}catch(Exception ex){failure=ex;}finally{if(modal.IsVisible)modal.Close();}
+            };
+            timer.Start();try{launch();}finally{timer.Stop();}
+            if(failure!=null)throw failure;Expect(seen,"Requested detail window opens");
+        }
+        private static void VerifySpaceUi(Shell shell,string preview)
+        {
+            Window w=shell.View;w.Width=1180;w.Height=800;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"FoldersTab");
+            C<Button>(w,"HomeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            SelectPath(w,Inside("rank"));
+            C<Button>(w,"FolderRankBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>C<TextBlock>(w,"RankNotice").Text.StartsWith("已读"),"Scoped ranking finishes");
+            Expect(C<TextBlock>(w,"RankPath").Text==Inside("rank") && C<DataGrid>(w,"RankGrid").Items.Count==1,"Folder action opens scoped ranking");
+            C<ComboBox>(w,"RankKind").SelectedIndex=1;
+            Expect(C<DataGrid>(w,"RankGrid").Items.Count==100 && !C<Button>(w,"RankDiveBtn").IsEnabled,"File ranking does not offer folder drill-down");
+            C<TextBox>(w,"RankSearch").Text="file-110";
+            Expect(C<DataGrid>(w,"RankGrid").Items.Count==1,"Ranking search operates on measured results");
+            C<TextBox>(w,"RankSearch").Clear();if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"ranking.png");
+            w.Width=810;w.Height=580;w.UpdateLayout();
+            Pump(()=>w.ActualWidth<=811,"Compact ranking size settles");
+            Expect(C<DataGrid>(w,"RankGrid").ActualHeight>150 && C<Button>(w,"RankScanBtn").IsVisible,"Ranking remains usable in a small window");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"ranking-compact.png");
+            C<Button>(w,"RankRootBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Expect(C<DataGrid>(w,"RankGrid").Items.Count==0 && C<TextBlock>(w,"RankTotal").Text=="尚未统计","Changing ranking scope discards old totals");
+            w.Width=1180;w.Height=800;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"CleanupTab");
+            var grid=C<DataGrid>(w,"CleanGrid");grid.SelectedItem=grid.Items.Cast<ScanRow>().Single(x=>x.Rule.Path==Inside("button-copy"));
+            InspectModal(w,()=>C<Button>(w,"PreviewFilesBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                var files=Child<DataGrid>(modal);Pump(()=>files.Items.Count==1,"File preview binds exact snapshot");
+                Expect(files.Items.Cast<FileChoice>().Single().PathText==Inside(@"button-copy\keep.tmp"),"Preview contains the selected cache project only");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"file-preview.png");
+                files.Items.Cast<FileChoice>().Single().Included=false;
+                Descendants<Button>(modal).Single(b=>Object.Equals(b.Content,"保存文件选择")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            });
+            Expect(C<TextBlock>(w,"ChosenSize").Text=="0 B" && !C<Button>(w,"CleanBtn").IsEnabled,"Excluding all visible selected files disables cleanup");
+            C<Button>(w,"RefreshBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>C<Button>(w,"RefreshBtn").IsEnabled,"Refresh after file exclusions");
+            Expect(!grid.Items.Cast<ScanRow>().Single(x=>x.Rule.Path==Inside("button-copy")).Files.Single().Included,"Unchanged excluded file stays excluded after rescan");
+            grid.SelectedItem=grid.Items.Cast<ScanRow>().Single(x=>x.Rule.Path==Inside("button-copy"));
+            InspectModal(w,()=>C<Button>(w,"PreviewFilesBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                Child<DataGrid>(modal).Items.Cast<FileChoice>().Single().Included=true;
+                modal.Close();
+            });
+            Expect(!grid.Items.Cast<ScanRow>().Single(x=>x.Rule.Path==Inside("button-copy")).Files.Single().Included,"Closing preview without Save discards edited choices");
+            var inventory=new SoftwareInventoryResult();inventory.Items.Add(new SoftwareEntry{Name="示例应用",Id="space-fixture",InstallPath=Inside("app-space"),Kind="桌面软件",Publisher="Example"});shell.SoftwareReader=()=>inventory;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");C<Button>(w,"RefreshBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>C<DataGrid>(w,"SoftwareGrid").Items.Cast<SoftwareEntry>().Any(x=>x.Id=="space-fixture"),"Software footprint fixture binds");
+            InspectModal(w,()=>C<Button>(w,"SoftwareSpaceBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                var paths=Child<DataGrid>(modal);Pump(()=>paths.Items.Count==1,"App footprint calculation finishes");
+                Expect(paths.Items.Cast<AppLocation>().Single().Usage.Bytes==8,"Software footprint measures bytes instead of installer estimate");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"app-space.png");
+            });
         }
 
         private static void VerifyManagementUi(Shell shell,string preview)
@@ -445,7 +554,7 @@ namespace DiskGuide
                 Directory.CreateDirectory(fresh);
                 box=fresh;
                 System.Windows.Media.RenderOptions.ProcessRenderMode=System.Windows.Interop.RenderMode.SoftwareOnly;
-                VerifyEngine(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
+                VerifyEngine(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
             }
             catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
             finally {if(box!=null && Directory.Exists(box))DeleteFixture(box);}

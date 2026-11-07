@@ -63,6 +63,8 @@ namespace DiskGuide
         public string Path;
         public long Bytes, Modified;
         public uint Volume, IndexHigh, IndexLow;
+        public bool Included = true;
+        public string Identity { get { return Path + "|" + Volume + "|" + IndexHigh + "|" + IndexLow + "|" + Bytes + "|" + Modified; } }
     }
 
     internal sealed class ScanRow : INotifyPropertyChanged
@@ -72,6 +74,8 @@ namespace DiskGuide
         public int Errors;
         public bool BusyApp;
         public long Bytes { get; set; }
+        public long SelectedBytes { get { return Files.Where(f => f.Included).Sum(f => f.Bytes); } }
+        public int SelectedCount { get { return Files.Count(f => f.Included); } }
         public string Previous = "";
         public string Name { get { return Rule.Name; } }
         public string PathText { get { return Rule.Path; } }
@@ -243,6 +247,20 @@ namespace DiskGuide
                        ((FileAttributes)info.Attributes & FileAttributes.Directory) != 0 && FinalPathMatches(handle, target);
             }
         }
+        public static string ResolveDirectory(string source)
+        {
+            if (!ReadyFixed(source)) return null;
+            using (var handle = CreateFile(source, 0x80, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero))
+            {
+                HandleInfo info;
+                if (handle.IsInvalid || !GetFileInformationByHandle(handle, out info) || ((FileAttributes)info.Attributes & FileAttributes.Directory) == 0) return null;
+                var buffer = new StringBuilder(32768);
+                uint n = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+                if (n == 0 || n >= buffer.Capacity || !buffer.ToString().StartsWith(@"\\?\", StringComparison.Ordinal)) return null;
+                string physical = buffer.ToString().Substring(4);
+                return ReadyFixed(physical) && CheckDirectory(physical) == Boundary.Clear ? physical : null;
+            }
+        }
         private static long FileTime(HandleInfo info)
         { return ((long)(uint)info.Modified.dwHighDateTime << 32) | (uint)info.Modified.dwLowDateTime; }
         private static long Length(HandleInfo info) { return ((long)info.SizeHigh << 32) | info.SizeLow; }
@@ -283,12 +301,12 @@ namespace DiskGuide
             foreach (ScanRow row in rows)
             {
                 token.ThrowIfCancellationRequested();
-                if (!row.Pick || !row.CanPick) continue;
+                if (!row.Pick || !row.CanPick || row.SelectedCount == 0) continue;
                 var done = new Outcome(); result[row.Rule.Path] = done;
                 if (!row.Rule.HasValidOrigin() || CheckDirectory(row.Rule.Path) != Boundary.Clear ||
                     (row.Rule.Processes.Length != 0 && row.Rule.Processes.Any(Running().Contains)))
-                { done.Skipped = row.Files.Count; continue; }
-                foreach (Entry file in row.Files)
+                { done.Skipped = row.SelectedCount; continue; }
+                foreach (Entry file in row.Files.Where(f => f.Included))
                 {
                     token.ThrowIfCancellationRequested();
                     try { if (DeleteScanned(row.Rule, file)) { done.Removed++; done.Bytes += file.Bytes; } else done.Skipped++; }
