@@ -330,6 +330,15 @@ namespace DiskGuide
                 C<RadioButton>(w,fixtureDrive).IsChecked=true;
             }
             Expect(button.IsEnabled,"One-click enabled for selected files");
+            var policyCombo=C<ComboBox>(w,"PolicyBox");policyCombo.ApplyTemplate();
+            var comboPeer=new ComboBoxAutomationPeer(policyCombo);
+            var comboAutomation=(IExpandCollapseProvider)comboPeer.GetPattern(PatternInterface.ExpandCollapse);
+            comboAutomation.Expand();
+            Pump(()=>policyCombo.IsDropDownOpen && policyCombo.ItemContainerGenerator.ContainerFromIndex(1)!=null,"Styled dropdown opens");
+            var option=comboPeer.GetChildren().Select(p=>p.GetPattern(PatternInterface.SelectionItem)).OfType<ISelectionItemProvider>().ElementAt(1);
+            option.Select();
+            Expect(policyCombo.SelectedIndex==1,"Styled dropdown retains native accessible selection");
+            comboAutomation.Collapse();Expect(!policyCombo.IsDropDownOpen,"Styled dropdown closes");policyCombo.SelectedIndex=0;
             Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"FoldersTab"),"Directory browser is the landing page");
             SelectPath(w,Inside("button"));
             Pump(()=>C<TextBlock>(w,"FolderSizeValue").Text=="10 B","Automatic folder size with personal and candidate files");
@@ -362,7 +371,8 @@ namespace DiskGuide
                 Expect(resultGrid.Items.Cast<FileOutcome>().Single().Code==CleanCode.Deleted,"Results window binds the actual cleanup outcome");
                 if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"cleanup-results.png");
                 var search=Descendants<TextBox>(modal).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="搜索清理结果");
-                search.Text="___no_result___";Expect(resultGrid.Items.Count==0,"Result search filters rows");search.Clear();
+                search.Text="___no_result___";Expect(resultGrid.Items.Count==0,"Result search filters rows");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"cleanup-empty.png");search.Clear();
                 Child<ComboBox>(modal).SelectedIndex=1;Expect(resultGrid.Items.Count==0,"Result category excludes successful deletes");
             });
             C<Button>(w,"ClearScopeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

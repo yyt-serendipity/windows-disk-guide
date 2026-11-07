@@ -56,7 +56,9 @@ try {
     if ([IO.File]::Exists($out)) {
         $backup = Join-Path $stage 'previous.exe'
         [IO.File]::Replace($binary,$out,$backup)
-        [IO.File]::Delete($backup)
+        try {[IO.File]::Delete($backup)}
+        catch [UnauthorizedAccessException] {Write-Warning "New build installed. The previous executable is still in use; retained at $backup"}
+        catch [IO.IOException] {Write-Warning "New build installed. Could not remove the previous executable; retained at $backup"}
     } else {[IO.File]::Move($binary,$out)}
     Get-Item -LiteralPath $out | Select-Object FullName,Length
 } finally {

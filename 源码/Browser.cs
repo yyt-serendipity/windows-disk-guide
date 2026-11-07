@@ -89,6 +89,9 @@ namespace DiskGuide
         {
             double width = View.ActualWidth > 0 ? View.ActualWidth : View.Width;
             double height = View.ActualHeight > 0 ? View.ActualHeight : View.Height;
+            var layout=Get<Grid>("AppLayout");
+            layout.RowDefinitions[0].Height=new GridLength(height<680?68:80);
+            layout.RowDefinitions[2].Height=new GridLength(height<680?32:38);
             bool narrow = width < 990;
             compact = narrow && height >= 685;
             var body = Get<Grid>("FolderLayout");
