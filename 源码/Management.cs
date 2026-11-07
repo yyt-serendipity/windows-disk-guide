@@ -84,6 +84,7 @@ namespace DiskGuide
         {
             if (startupLoading || lifetime.IsCancellationRequested) return;
             startupLoading = true;
+            Activity("startup","正在读取开机启动项…");
             Label("StartupCount", "读取中…");
             Label("StartupEmpty", "正在读取登录项、计划任务和服务…");
             Get<TextBlock>("StartupEmpty").Visibility = Visibility.Visible;
@@ -97,7 +98,8 @@ namespace DiskGuide
             finally
             {
                 startupLoading = false;
-                if (!lifetime.IsCancellationRequested) BindStartup();
+                EndActivity("startup",startupInventory.Warnings.Count>0 ? "启动项读取不完整，请查看页面提示" : "启动项已读取 · "+startupInventory.Items.Count+" 项",startupInventory.Warnings.Count>0);
+                if (!lifetime.IsCancellationRequested) { BindStartup(); QueueIcons(startupInventory.Items,true); }
             }
         }
         private static bool HasText(string value, string term)
@@ -133,6 +135,7 @@ namespace DiskGuide
         {
             if (softwareLoading || lifetime.IsCancellationRequested) return;
             softwareLoading = true;
+            Activity("software","正在读取已安装软件…");
             Label("SoftwareCount", "读取中…");
             Label("SoftwareEmpty", "正在读取桌面软件与商店应用…");
             Get<TextBlock>("SoftwareEmpty").Visibility = Visibility.Visible;
@@ -147,7 +150,8 @@ namespace DiskGuide
             finally
             {
                 softwareLoading = false;
-                if (!lifetime.IsCancellationRequested) BindSoftware();
+                EndActivity("software",softwareInventory.Warnings.Count>0 ? "软件清单读取不完整，请查看页面提示" : "软件清单已读取 · "+softwareInventory.Items.Count+" 项",softwareInventory.Warnings.Count>0);
+                if (!lifetime.IsCancellationRequested) { BindSoftware(); QueueIcons(softwareInventory.Items,false); }
             }
         }
         internal static bool MatchSoftware(SoftwareEntry item, string term, int kind)
@@ -194,6 +198,7 @@ namespace DiskGuide
                 "\n位置：" + entry.InstallPath + "\n\n" + action + "\n卸载可能删除配置或存档，请先保存需要的内容。保留规则不能约束官方卸载器。完成后检查安装目录残留，额外清除前还会显示清单。",
                 "确认卸载这个软件", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
             pendingUninstall = entry; uninstallLaunching = true;
+            Activity("uninstall","正在启动官方卸载 · "+entry.Name);
             Get<Border>("UninstallProgress").Visibility = Visibility.Visible;
             SetUninstallControls(false);
             Label("UninstallStatus", "正在启动官方卸载：" + entry.Name);
@@ -208,6 +213,7 @@ namespace DiskGuide
                     if (process.StartInfo.RedirectStandardOutput) output = process.StandardOutput.ReadToEndAsync();
                     if (process.StartInfo.RedirectStandardError) errors = process.StandardError.ReadToEndAsync();
                     Label("UninstallStatus", "请完成「" + entry.Name + "」的官方卸载。完成后将核查结果。");
+                    Activity("uninstall","等待官方卸载完成 · "+entry.Name);
                     while (!process.HasExited)
                     {
                         if (lifetime.IsCancellationRequested) return;
@@ -237,6 +243,7 @@ namespace DiskGuide
             {
                 if (process != null) process.Dispose();
                 uninstallLaunching = false;
+                EndActivity("uninstall",Get<TextBlock>("UninstallStatus").Text,true);
                 if (!lifetime.IsCancellationRequested) { SetUninstallControls(true); ShowSoftware(); }
             }
             if (!lifetime.IsCancellationRequested) await CheckUninstall();
@@ -251,6 +258,8 @@ namespace DiskGuide
         {
             if (pendingUninstall == null || uninstallLaunching || checkingUninstall || softwareLoading || uninstallNeedsRestart) return;
             checkingUninstall = true; SetUninstallControls(false);
+            Activity("uninstall-check","正在核对卸载结果与安装目录…");
+            bool confirmed=false;
             var owner = pendingUninstall;
             try
             {
@@ -266,8 +275,10 @@ namespace DiskGuide
                 if(protection.BlocksTree(plan.Path)){plan.CanRecycle=false;plan.Reason=protection.Error??"此安装目录与永久保留规则重叠，不执行残留回收。";}
                 if (lifetime.IsCancellationRequested) return;
                 Label("UninstallStatus", "「" + owner.Name + "」的原安装登记已移除。" + plan.Reason);
+                Activity("uninstall-check","等待确认残留清单 · "+owner.Name);
                 if (ShowResidualPlan(owner, plan))
                 {
+                    Activity("uninstall-check","正在回收已确认的安装残留…");
                     IntPtr window = new System.Windows.Interop.WindowInteropHelper(View).Handle;
                     var completion = new TaskCompletionSource<bool>();
                     var worker = new System.Threading.Thread(() => {
@@ -285,11 +296,14 @@ namespace DiskGuide
                     await completion.Task;
                     Label("UninstallStatus", "Windows 已处理确认的安装残留。其他位置的个人数据和未识别内容没有自动清除。");
                 }
+                else if(plan.CanRecycle) Label("UninstallStatus","「"+owner.Name+"」的原安装登记已移除。本次未选择回收安装目录残留。");
+                confirmed=true;
             }
             catch (Exception ex) { if (!lifetime.IsCancellationRequested) Label("UninstallStatus", "处理未完成：" + ex.GetBaseException().Message); }
             finally
             {
                 checkingUninstall = false;
+                EndActivity("uninstall-check",Get<TextBlock>("UninstallStatus").Text,!confirmed);
                 if (!lifetime.IsCancellationRequested) { SetUninstallControls(true); ShowSoftware(); }
             }
         }

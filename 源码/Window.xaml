@@ -461,7 +461,10 @@
           <Border Grid.Row="2" Style="{StaticResource Frame}" Padding="1"><Grid>
             <DataGrid x:Name="StartupGrid" AutomationProperties.Name="开机启动列表" RowHeight="44">
               <DataGrid.Columns>
-                <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="2*" MinWidth="135" ElementStyle="{StaticResource CellText}"/>
+                <DataGridTemplateColumn Header="名称" Width="2*" MinWidth="160" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                  <DockPanel Margin="8,0" VerticalAlignment="Center"><Image Source="{Binding Icon}" Width="28" Height="28" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" VerticalAlignment="Center"/></DockPanel>
+                </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="来源" Binding="{Binding Source}" Width="150" ElementStyle="{StaticResource CellText}"/>
                 <DataGridTextColumn Header="启动设置" Binding="{Binding State}" Width="170" ElementStyle="{StaticResource CellText}"/>
                 <DataGridTextColumn Header="启动命令" Binding="{Binding Command}" Width="2*" MinWidth="140" ElementStyle="{StaticResource CellText}"/>
@@ -502,8 +505,9 @@
             <DataGrid x:Name="SoftwareGrid" AutomationProperties.Name="已安装软件列表" RowHeight="46">
               <DataGrid.Columns>
                 <DataGridTemplateColumn Header="软件 / 版本" Width="2*" MinWidth="180" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate>
-                  <StackPanel Margin="8,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
-                    <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#526981" TextTrimming="CharacterEllipsis"/></StackPanel>
+                  <DockPanel Margin="8,0" VerticalAlignment="Center"><Image Source="{Binding Icon}" Width="30" Height="30" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/>
+                      <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#526981" TextTrimming="CharacterEllipsis"/></StackPanel></DockPanel>
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="发布者" Binding="{Binding Publisher}" Width="*" MinWidth="100" ElementStyle="{StaticResource CellText}"/>
                 <DataGridTextColumn Header="类型" Binding="{Binding Kind}" Width="95" ElementStyle="{StaticResource CellText}"/>
@@ -532,7 +536,16 @@
         <Button x:Name="KeepRulesBtn" Content="保留规则" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0"/>
         <Button x:Name="ResultsBtn" Content="清理结果" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0" IsEnabled="False"/>
         <Button x:Name="ScanTasksBtn" Content="扫描任务" Style="{StaticResource LinkButton}" DockPanel.Dock="Left" Margin="0,0,14,0" Visibility="Collapsed" FontWeight="SemiBold" AutomationProperties.Name="查看后台扫描任务"/>
-        <TextBlock x:Name="StatusText" Text="正在准备扫描…" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="#3B556C"/></DockPanel>
+        <Grid><TextBlock x:Name="StatusText" Text="正在准备扫描…" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="#3B556C"/>
+          <Border x:Name="ActivityPanel" Background="White" Visibility="Collapsed" VerticalAlignment="Stretch">
+            <DockPanel>
+              <Button x:Name="ActivityDismiss" DockPanel.Dock="Right" Content="收起" Style="{StaticResource LinkButton}" Margin="8,0" AutomationProperties.Name="收起操作结果"/>
+              <Path x:Name="ActivityGlyph" Width="18" Height="18" Stretch="Uniform" Stroke="#2A64C7" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" RenderTransformOrigin="0.5,0.5" Margin="0,0,8,0"/>
+              <TextBlock x:Name="ActivityState" FontSize="12" FontWeight="SemiBold" Foreground="#244C81" VerticalAlignment="Center" Margin="0,0,10,0"/>
+              <TextBlock x:Name="ActivityText" FontSize="12" Foreground="#35577F" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            </DockPanel>
+          </Border>
+        </Grid></DockPanel>
     </Border>
   </Grid>
 </Window>

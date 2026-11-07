@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 namespace DiskGuide
 {
-    internal sealed class StartupEntry
+    internal sealed class StartupEntry : IconEntry
     {
         public string Name { get; set; }
         public string Source { get; set; }

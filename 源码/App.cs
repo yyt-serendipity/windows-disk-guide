@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.6.0.0")]
+[assembly: AssemblyVersion("1.7.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -75,6 +75,7 @@ namespace DiskGuide
             clean = Get<Button>("CleanBtn");
             WireBrowser();
             WireManagement();
+            WireActivity();
             WireSpace();
             Get<Button>("ScanTasksBtn").Click+=delegate{
                 if(ranking!=null)tabs.SelectedItem=Get<TabItem>("RankingTab");
@@ -263,6 +264,9 @@ namespace DiskGuide
             var previous = rows.Where(r => r.CanPick).ToDictionary(r => r.Rule.Path, r => r.Pick, StringComparer.OrdinalIgnoreCase);
             var excluded = new HashSet<string>(rows.SelectMany(r => r.Files).Where(f => !f.Included).Select(f => f.Identity), StringComparer.OrdinalIgnoreCase);
             busy = true;
+            Activity("cleanup",delete ? "正在清理已确认的文件…" : "正在扫描缓存目录…");
+            string activityOutcome=delete ? "清理已停止" : "扫描已停止";
+            bool activityFailed=true;
             if(OnFolders || delete)StopBrowser();
             UpdateScanActivity();
             cleanGrid.IsEnabled = false;
@@ -291,6 +295,8 @@ namespace DiskGuide
                     foreach (var item in result) outcomes[item.Key] = "  上次" + item.Value.Text;
                     var total = new Outcome { Removed = result.Values.Sum(v => v.Removed), Bytes = result.Values.Sum(v => v.Bytes), Skipped = result.Values.Sum(v => v.Skipped), Preserved=result.Values.Sum(v=>v.Preserved) };
                     final = "本次" + total.Text;
+                    activityOutcome=final;activityFailed=total.Skipped>0;
+                    Activity("cleanup",final+" · 正在更新清单…");
                     Status(final + " 正在更新清单…");
                 }
                 keep=preserveStore.Load();var keepNow=keep;
@@ -311,16 +317,19 @@ namespace DiskGuide
                     row.PropertyChanged += delegate { Summary(); };
                 }
                 Status(final ?? ("扫描完成  ·  " + rows.Count + " 个已识别位置  ·  " + DateTime.Now.ToString("HH:mm:ss")));
+                if(!delete){activityOutcome="缓存扫描完成 · "+rows.Count+" 个已识别位置";activityFailed=false;}
             }
             catch (OperationCanceledException) {}
             catch (Exception ex)
             {
+                activityFailed=true;activityOutcome=(final==null ? "" : final+" · ")+"读取失败，请重新扫描";
                 rows = new List<ScanRow>();
                 Status((final == null ? "" : final + "  ") + "读取失败，请重新扫描。" + ex.GetBaseException().Message);
             }
             finally
             {
                 busy = false;
+                EndActivity("cleanup",activityOutcome,activityFailed);
                 UpdateScanActivity();
                 if (!lifetime.IsCancellationRequested)
                 {

@@ -659,21 +659,105 @@ namespace DiskGuide
             });
         }
 
+        [DllImport("user32.dll")]
+        private static extern int GetGuiResources(IntPtr process,int flags);
+        private static void VerifyIcons()
+        {
+            string executable=System.Reflection.Assembly.GetExecutingAssembly().Location,path;int index;
+            Expect(AppIcons.TrySource("\""+executable+"\", -12",false,out path,out index) && path==executable && index==-12,"Icon locations retain signed resource index and quoted paths");
+            Expect(AppIcons.TrySource("\""+executable+"\" --startup",true,out path,out index) && path==executable,"Startup icon parser separates quoted executable from arguments");
+            Expect(!AppIcons.TrySource(@"\\server\share\app.exe",false,out path,out index) && !AppIcons.TrySource("https://example.com/icon.png",false,out path,out index) && !AppIcons.TrySource(@"relative\app.exe",false,out path,out index),"Remote and relative icon locations are rejected");
+            Expect(!AppIcons.TrySource(executable+":stream",false,out path,out index),"Alternate streams cannot supply icons");
+            var item=new StartupEntry{Command="\""+executable+"\" --not-executed"};
+            var image=AppIcons.Resolve(item);
+            Expect(image.IsFrozen && !Object.ReferenceEquals(image,AppIcons.Fallback),"Native executable icon is copied into a frozen WPF image");
+            Expect(Object.ReferenceEquals(image,AppIcons.Resolve(item)),"Resolved icon is reused from bounded cache");
+            object scripting=null,shortcut=null;
+            try
+            {
+                var type=Type.GetTypeFromProgID("WScript.Shell");scripting=Activator.CreateInstance(type);
+                string link=Inside(@"icons\sample.lnk");Directory.CreateDirectory(Path.GetDirectoryName(link));
+                shortcut=type.InvokeMember("CreateShortcut",System.Reflection.BindingFlags.InvokeMethod,null,scripting,new object[]{link});
+                shortcut.GetType().InvokeMember("TargetPath",System.Reflection.BindingFlags.SetProperty,null,shortcut,new object[]{executable});
+                shortcut.GetType().InvokeMember("IconLocation",System.Reflection.BindingFlags.SetProperty,null,shortcut,new object[]{executable+",0"});
+                shortcut.GetType().InvokeMember("Save",System.Reflection.BindingFlags.InvokeMethod,null,shortcut,null);
+                Expect(!Object.ReferenceEquals(AppIcons.Resolve(new StartupEntry{Command=link}),AppIcons.Fallback),"Startup shortcut icon is read without running the shortcut");
+            }
+            finally {if(shortcut!=null)Marshal.FinalReleaseComObject(shortcut);if(scripting!=null)Marshal.FinalReleaseComObject(scripting);}
+            bool changed=false; item.PropertyChanged+=(s,e)=>{if(e.PropertyName=="Icon")changed=true;};item.SetIcon(image);
+            Expect(changed && Object.ReferenceEquals(item.Icon,image),"Icon arrival notifies the row binding without rebuilding inventory");
+            Expect(Object.ReferenceEquals(AppIcons.Resolve(new SoftwareEntry{IconLocation=Inside("missing-icon.exe")}),AppIcons.Fallback),"Missing icon leaves a usable fallback");
+            string bad=Put(@"icons\broken.png","invalid image",false);
+            Expect(Object.ReferenceEquals(AppIcons.Resolve(new SoftwareEntry{IconLocation=bad}),AppIcons.Fallback),"Malformed artwork cannot fail inventory");
+            string logo=Put(@"icons\package\Assets\Logo.scale-100.png","",false);
+            var visual=new DrawingVisual();using(var drawing=visual.RenderOpen())drawing.DrawImage(AppIcons.Fallback,new Rect(0,0,32,32));
+            var bitmap=new RenderTargetBitmap(32,32,96,96,PixelFormats.Pbgra32);bitmap.Render(visual);
+            var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(bitmap));using(var file=File.Create(logo))png.Save(file);
+            Put(@"icons\package\AppxManifest.xml","<Package><Properties><Logo>Assets\\Logo.png</Logo></Properties></Package>",false);
+            var package=new SoftwareEntry{Kind="商店应用",InstallPath=Inside(@"icons\package")};
+            Expect(!Object.ReferenceEquals(AppIcons.Resolve(package),AppIcons.Fallback),"Package manifest resolves scale-qualified local artwork");
+            using(var file=File.Open(logo,FileMode.Open,FileAccess.ReadWrite,FileShare.None))Expect(file.Length>0,"Bitmap loading releases the source file");
+            Put(@"icons\untrusted\AppxManifest.xml","<!DOCTYPE Package [<!ENTITY ext SYSTEM 'file:///C:/Windows/win.ini'>]><Package><Properties><Logo>&ext;</Logo></Properties></Package>",false);
+            Expect(Object.ReferenceEquals(AppIcons.Resolve(new SoftwareEntry{Kind="商店应用",InstallPath=Inside(@"icons\untrusted")}),AppIcons.Fallback),"External entities in package metadata are rejected");
+            using(var process=Process.GetCurrentProcess())
+            {
+                int before=GetGuiResources(process.Handle,1);
+                for(int i=0;i<32;i++)AppIcons.Resolve(new SoftwareEntry{IconLocation=executable,InstallPath="handle-check-"+i});
+                Expect(GetGuiResources(process.Handle,1)<=before+4,"Repeated icon extraction releases native icon handles");
+            }
+        }
+        private static void VerifyActivity(Shell shell,string preview)
+        {
+            var w=shell.View;var glyph=C<System.Windows.Shapes.Path>(w,"ActivityGlyph");
+            shell.MotionAllowed=()=>true;
+            shell.Activity("fixture-clean","正在清理测试文件…");
+            Pump(()=>glyph.RenderTransform.HasAnimatedProperties,"Active operation starts feedback motion");
+            Expect(C<TextBlock>(w,"StatusText").Visibility!=Visibility.Visible,"Animated feedback replaces the status line without overlapping text");
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
+            Expect(C<Border>(w,"ActivityPanel").IsVisible && glyph.RenderTransform.HasAnimatedProperties,"Operation feedback survives page navigation");
+            shell.Activity("fixture-remove","正在回收测试残留…");
+            Expect(C<TextBlock>(w,"ActivityState").Text=="2 项处理中","Concurrent operations are represented separately");
+            shell.EndActivity("fixture-clean","测试清理已完成",false);
+            Expect(glyph.RenderTransform.HasAnimatedProperties && C<TextBlock>(w,"ActivityText").Text.Contains("回收"),"One completion does not stop another operation animation");
+            shell.MotionAllowed=()=>false;shell.Activity("fixture-remove","正在回收测试残留…");
+            Expect(!glyph.RenderTransform.HasAnimatedProperties && C<TextBlock>(w,"ActivityState").Text=="处理中","Reduced motion keeps readable state without a looping animation");
+            Expect(!C<Border>(w,"ActivityPanel").HasAnimatedProperties,"Reduced motion also stops the entry transition");
+            shell.MotionAllowed=()=>true;shell.Activity("fixture-remove","正在回收测试残留…");
+            w.WindowState=WindowState.Minimized;
+            Expect(!glyph.RenderTransform.HasAnimatedProperties,"Minimizing stops background animation clocks");
+            w.WindowState=WindowState.Normal;
+            Pump(()=>glyph.RenderTransform.HasAnimatedProperties,"Restoring resumes only an active operation animation");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"operation-running.png");
+            shell.EndActivity("fixture-remove","测试文件被占用，请查看结果",true);
+            Expect(!glyph.RenderTransform.HasAnimatedProperties && C<TextBlock>(w,"ActivityState").Text=="请查看结果","Partial or failed operation stops animation and does not claim success");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"operation-attention.png");
+            C<Button>(w,"ActivityDismiss").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Expect(C<Border>(w,"ActivityPanel").Visibility==Visibility.Collapsed,"Settled operation result can be dismissed");
+            Expect(C<TextBlock>(w,"StatusText").Visibility==Visibility.Visible,"Dismissing operation feedback restores the page status");
+            shell.Activity("fixture-repeat","正在执行下一项测试…");shell.EndActivity("fixture-repeat","测试操作完成",false);
+            Expect(C<TextBlock>(w,"ActivityState").Text=="已完成" && !glyph.RenderTransform.HasAnimatedProperties,"Repeated operation ends in a settled completed state");
+            shell.MotionAllowed=()=>SystemParameters.ClientAreaAnimation;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
+        }
         private static void VerifyManagementUi(Shell shell,string preview)
         {
             var startup=new StartupInventoryResult();
             startup.Items.Add(new StartupEntry{Name="示例笔记",Source="登录启动",State="已禁用（系统记录）",Command=@"D:\Apps\ExampleNotes\notes.exe --startup",Location=@"HKCU\Software\Example"});
             startup.Items.Add(new StartupEntry{Name="示例更新任务",Source="计划任务 · 登录",State="任务已禁用 · 当前运行中",Command="update.exe",Location=@"\Example\Update"});
             startup.Items.Add(new StartupEntry{Name="示例后台服务",Source="自动服务",State="自动（延迟启动）· 未读取运行状态",Command="service.exe",Location=@"HKLM\System\Example"});
+            startup.Items[0].IconLocation=System.Reflection.Assembly.GetExecutingAssembly().Location;
             shell.StartupReader=()=>startup;
             var software=new SoftwareInventoryResult();
             software.Items.Add(new SoftwareEntry{Name="示例笔记",Id="fixture-notes",Kind="桌面软件",Publisher="Example Studio",Version="2.4.0",InstallPath=@"D:\Apps\ExampleNotes",SizeText="85 MiB",UninstallCommand="fixture-only.exe"});
             software.Items.Add(new SoftwareEntry{Name="示例系统组件",Id="fixture-system",Kind="商店应用",Publisher="Example",Version="1.0",SizeText="未登记",ProtectionReason="系统、框架或资源包，不在本工具中卸载。"});
+            software.Items[0].IconLocation=System.Reflection.Assembly.GetExecutingAssembly().Location;
             shell.SoftwareReader=()=>software;
             var w=shell.View;
             w.Width=1180;w.Height=800;
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
             Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Count==3,"Startup inventory binds fixture data");
+            Pump(()=>!Object.ReferenceEquals(startup.Items[0].Icon,AppIcons.Fallback),"Startup icon loads asynchronously after list binding");
+            Expect(Descendants<System.Windows.Controls.Image>(C<DataGrid>(w,"StartupGrid")).Any(i=>Object.ReferenceEquals(i.Source,startup.Items[0].Icon)),"Startup row displays the resolved icon");
             Expect(C<StackPanel>(w,"DriveSwitcher").Visibility==Visibility.Collapsed,"Machine startup scope not falsely filtered by selected disk");
             C<ComboBox>(w,"StartupKind").SelectedIndex=2;
             Expect(C<DataGrid>(w,"StartupGrid").Items.Count==1 && C<TextBlock>(w,"StartupTitle").Text.Contains("当前运行中"),"Startup source filter and running state detail");
@@ -683,6 +767,8 @@ namespace DiskGuide
             if(!String.IsNullOrWhiteSpace(preview)){Directory.CreateDirectory(preview);Image(w,preview,"startup.png");}
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
             Pump(()=>C<DataGrid>(w,"SoftwareGrid").Items.Count==2,"Software inventory binds fixtures without reading real installs");
+            Pump(()=>!Object.ReferenceEquals(software.Items[0].Icon,AppIcons.Fallback),"Software icon loads asynchronously after list binding");
+            Expect(Descendants<System.Windows.Controls.Image>(C<DataGrid>(w,"SoftwareGrid")).Any(i=>Object.ReferenceEquals(i.Source,software.Items[0].Icon)),"Software row displays the resolved icon");
             Expect(C<Button>(w,"UninstallBtn").IsEnabled,"Eligible software offers explicit uninstall action");
             C<ComboBox>(w,"SoftwareKind").SelectedIndex=2;
             Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count==1 && !C<Button>(w,"UninstallBtn").IsEnabled,"Protected package cannot launch uninstall");
@@ -690,6 +776,7 @@ namespace DiskGuide
             Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count==1,"Software search matches installation location");
             C<TextBox>(w,"SoftwareSearch").Clear();
             if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"software.png");
+            VerifyActivity(shell,preview);
             w.Width=810;w.Height=580;w.UpdateLayout();
             Pump(()=>C<DataGrid>(w,"SoftwareGrid").ActualHeight>100,"Small window retains useful software rows");
             if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"software-compact.png");
@@ -701,7 +788,7 @@ namespace DiskGuide
             // Explicit local opt-in only. Screenshots may contain local account or folder names.
             // Never click the delete action in a window constructed with production rules.
             Directory.CreateDirectory(preview);
-            Window w = new Shell(Catalog.Rules).View;
+            var shell=new Shell(Catalog.Rules);Window w = shell.View;
             Hidden(w);
             try
             {
@@ -721,10 +808,14 @@ namespace DiskGuide
                 C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
                 Pump(()=>C<TextBlock>(w,"StartupCount").Text.EndsWith("项"),"Read-only startup inventory preview");
                 Expect(C<DataGrid>(w,"StartupGrid").Items.Count>0,"Real startup inventory binds without changes");
+                Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Cast<StartupEntry>().Any(i=>!Object.ReferenceEquals(i.Icon,AppIcons.Fallback)),"Real startup icons load");
+                Pump(()=>shell.IconsIdle,"Startup icon queue settles before local preview");
                 Image(w,preview,"startup-real.png");
                 C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
                 Pump(()=>C<TextBlock>(w,"SoftwareCount").Text.EndsWith("项"),"Read-only software inventory preview");
                 Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count>0,"Real software inventory binds without uninstall");
+                Pump(()=>C<DataGrid>(w,"SoftwareGrid").Items.Cast<SoftwareEntry>().Any(i=>!Object.ReferenceEquals(i.Icon,AppIcons.Fallback)),"Real software icons load");
+                Pump(()=>shell.IconsIdle,"Software icon queue settles before local preview");
                 Image(w,preview,"software-real.png");
                 Console.WriteLine("Saved read-only local previews to the requested directory.");
             }
@@ -762,7 +853,7 @@ namespace DiskGuide
                 Directory.CreateDirectory(fresh);
                 box=fresh;
                 System.Windows.Media.RenderOptions.ProcessRenderMode=System.Windows.Interop.RenderMode.SoftwareOnly;
-                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
+                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyIcons(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
             }
             catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
             finally {if(box!=null && Directory.Exists(box))DeleteFixture(box);}

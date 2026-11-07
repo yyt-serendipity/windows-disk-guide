@@ -6,7 +6,13 @@ v1.5 增加逐文件清理结果、跨会话永久保留规则，以及大型扫
 
 v1.6.0 修复切换页面中断目录统计和空间排行的问题，加入始终可见的扫描任务入口。UI 参考火绒官方公开界面的窄侧栏和功能分区，采用深蓝导航、浅色内容区与蓝色操作按钮；不使用火绒标识或图稿。参考来源：[火绒官方界面展示](https://www.huorong.cn/document/info/productions/1655.html)。
 
-**下载**　到 [GitHub 发布页](https://github.com/yyt-serendipity/windows-disk-guide/releases/latest) 下载 `DiskGuide-1.6.0-windows.zip`，解压后双击 `磁盘清理助手.exe`。把同包的 `README.md` 和程序放在一起，可从窗口右下角「使用说明」离线阅读。
+v1.7.0 为开机启动、软件管理列表加入本地软件图标，并在底部显示清理、读取清单、官方卸载和残留回收的操作动画。切换页面仍可看到进行中的操作；结束后显示完成或需要查看的结果，8 秒后自动收起，也可手动收起。清理详情仍可从「清理结果」查看，卸载详情保留在软件页面。
+
+**下载**　到 [GitHub 发布页](https://github.com/yyt-serendipity/windows-disk-guide/releases/latest) 下载 `DiskGuide-1.7.0-windows.zip`，解压后双击 `磁盘清理助手.exe`。把同包的 `README.md` 和程序放在一起，可从窗口右下角「使用说明」离线阅读。
+
+图标来自桌面软件的 `DisplayIcon` 登记、启动程序或快捷方式，以及商店应用的本地清单资源。列表先显示，再逐项补齐图标；不能读取、路径已失效或没有登记图标的项目显示统一占位图标。只读取本地固定磁盘，不联网下载图标，不运行启动命令；目录链接、网络路径及无法识别的资源会跳过。因此并非每个项目都能显示品牌图标，图标也不作为软件身份或安全性的证明。
+
+动画不代表完成百分比。官方卸载器打开后仍需按其提示操作，程序随后核查登记与残留；被占用、跳过、要求重启或无法确认的情况会保留说明，不以卸载器窗口关闭判断成功。多个操作分别跟踪，窗口最小化或关闭时停止动画；关闭 Windows 客户区动画时使用静态状态提示。
 
 ## 我的电脑能用吗？
 
@@ -153,7 +159,7 @@ v1.6.0 修复切换页面中断目录统计和空间排行的问题，加入始�
 
 ## 具体怎样实现？
 
-模块链接对应仓库中的源码。阅读离线压缩包时，可在 [GitHub 的 v1.6.0 源码目录](https://github.com/yyt-serendipity/windows-disk-guide/tree/v1.6.0/源码) 中查看同一版本。
+模块链接对应仓库中的源码。阅读离线压缩包时，可在 [GitHub 的 v1.7.0 源码目录](https://github.com/yyt-serendipity/windows-disk-guide/tree/v1.7.0/源码) 中查看同一版本。
 
 | 模块 | 工作方式 |
 |---|---|
@@ -167,6 +173,8 @@ v1.6.0 修复切换页面中断目录统计和空间排行的问题，加入始�
 | [扫描与删除](源码/Cleaner.cs) | 扫描按具体路径、文件名、层级、修改时间及相关进程筛选，并记录文件身份、长度和修改时间。点击清理后，再逐个复核。 |
 | [开机启动](源码/StartupInventory.cs) | 只读启动注册表、启动文件夹、Task Scheduler COM 和服务登记；不使用进程名推断自启动。 |
 | [软件盘点与卸载](源码/SoftwareInventory.cs) · [管理交互](源码/Management.cs) | 只读卸载登记和当前用户 Appx；确认后调用官方卸载，之后独立核查原安装目录。没有使用会触发 MSI 检查的 `Win32_Product`。 |
+| [本地图标](源码/AppIcons.cs) | 后台串行读取图标，最多缓存 512 个结果；图像冻结后更新行绑定，刷新与关闭取消尚未读取的队列。原生图标复制后释放句柄，位图读取后关闭文件；商店清单禁止外部实体。使用 [ExtractIconEx](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-extracticonexw) 读取资源，[快捷方式属性](https://learn.microsoft.com/en-us/troubleshoot/windows-client/admin-development/create-desktop-shortcut-with-wsh) 仅用于定位本地图标。 |
+| [操作反馈](源码/Activity.cs) | 按操作标识维护状态，WPF 原生旋转与淡入动画；没有动画依赖或虚构进度。并发操作分别结束，全部结束后停止旋转，隐藏或关闭时释放动画时钟。 |
 | [回归测试](源码/Check.cs) | 在专用临时目录造出缓存、个人文件、占用文件、硬链接、目录联接和被替换的文件，检验哪些应删、哪些应留下；覆盖永久保留、损坏配置、并发锁、队列取消与实际 WPF 交互。测试使用独立设置文件。 |
 
 删除过程可以用一个例子理解。假设扫描时找到一个旧的 `example.tmp`，用户随后用同名文件替换了它。点击清理时，程序会检查路径各级目录，尝试独占打开文件，核对卷号、文件标识、长度、修改时间、链接数和句柄对应的最终路径。任一检查失败就跳过。复核通过后，通过**同一个已验证的句柄**提交删除请求，避免按路径重新打开时误删另一个文件。[Windows 最终路径接口](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew) · [Windows 文件信息接口](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle)
@@ -190,7 +198,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\Release.ps1"
 `-ExecutionPolicy Bypass` 只应用于这次启动的 PowerShell 进程。发布产物在 `dist` 中。可将下载文件的 SHA-256 与同一发布页的 `SHA256SUMS.txt` 对照，检查传输完整性。
 
 ```powershell
-Get-FileHash ".\DiskGuide-1.6.0-windows.zip" -Algorithm SHA256
+Get-FileHash ".\DiskGuide-1.7.0-windows.zip" -Algorithm SHA256
 ```
 
 发布包使用普通 Windows 桌面可执行文件，目前没有 Authenticode 代码签名。请从本仓库的 Releases 下载并核对校验值。维护者向 main 推送或提交拉取请求时，GitHub Actions 会在 Windows runner 上执行构建、测试和打包。CI 通过只说明该环境中的检查通过，其他 Windows 版本仍需分别验证。

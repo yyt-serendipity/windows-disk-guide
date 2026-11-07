@@ -13,7 +13,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace DiskGuide
 {
-    internal sealed class SoftwareEntry
+    internal sealed class SoftwareEntry : IconEntry
     {
         public string Name { get; set; }
         public string Publisher { get; set; }
@@ -122,7 +122,7 @@ namespace DiskGuide
                 InstallPath = NormalizePath(Text(key, "InstallLocation")), Kind = "桌面软件",
                 Id = hive + "|" + view + "|" + name, Hive = hive, View = view, KeyName = name,
                 Msi = Convert.ToString(key.GetValue("WindowsInstaller", 0)) == "1",
-                UninstallCommand = Text(key, "UninstallString"),
+                UninstallCommand = Text(key, "UninstallString"), IconLocation = Text(key, "DisplayIcon"),
                 SizeText = kb > 0 && kb < Int64.MaxValue / 1024 ? Engine.Size(kb * 1024) : "未登记"
             };
             Guid product;
