@@ -28,6 +28,13 @@ namespace DiskGuide
         private static extern bool CreateHardLink(string link, string existing, IntPtr reserved);
         [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
         private static extern uint GetLongPathName(string path, StringBuilder destination, uint capacity);
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr window,uint message,IntPtr wparam,IntPtr lparam);
+        private static int HitTest(Window window,FrameworkElement element,double x,double y)
+        {
+            Point p=element.PointToScreen(new Point(x,y));int packed=((int)p.X&65535)|(((int)p.Y&65535)<<16);
+            return SendMessage(new System.Windows.Interop.WindowInteropHelper(window).Handle,0x84,IntPtr.Zero,new IntPtr(packed)).ToInt32();
+        }
 
         private static string CanonicalDirectory(string directory)
         {
@@ -269,9 +276,8 @@ namespace DiskGuide
             var visual=new DrawingVisual();using(var drawing=visual.RenderOpen()){
                 var bounds=new Rect(0,0,content.ActualWidth,content.ActualHeight);
                 drawing.DrawRectangle(w.Background??Brushes.White,null,bounds);
-                drawing.DrawRectangle(new VisualBrush(content),null,bounds);
             }
-            image.Render(visual);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
+            image.Render(visual);image.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
             using(var output=File.Create(Path.Combine(dir,name)))encoder.Save(output);
         }
         private static void VerifyUsage()
@@ -330,6 +336,20 @@ namespace DiskGuide
             string fixtureDrive="Drive"+Path.GetPathRoot(box)[0];
             C<RadioButton>(w,fixtureDrive).IsChecked=true;
             Pump(()=>button.IsEnabled,"Fixture UI scan: "+C<TextBlock>(w,"StatusText").Text);
+            w.UpdateLayout();
+            Expect(HitTest(w,C<Grid>(w,"AppLayout"),w.ActualWidth/2,12)==2,"Integrated header retains native title drag and double-click hit area");
+            var captionClose=C<Button>(w,"CloseBtn");
+            Expect(HitTest(w,captionClose,22,16)==1 && HitTest(w,C<RadioButton>(w,"DriveC"),40,24)==1,"Caption controls and drive switch remain clickable");
+            C<Button>(w,"MaximizeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>w.WindowState==WindowState.Maximized,"Caption maximize command");
+            Expect((string)C<Button>(w,"MaximizeBtn").ToolTip=="还原","Maximized caption exposes restore action");
+            C<Button>(w,"MaximizeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>w.WindowState==WindowState.Normal,"Caption restore command");
+            C<Button>(w,"MinimizeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>w.WindowState==WindowState.Minimized,"Caption minimize command");
+            SystemCommands.RestoreWindow(w);Pump(()=>w.WindowState==WindowState.Normal,"Restore after minimize");w.Left=-20000;w.Top=-20000;
+            bool closeRequested=false;System.ComponentModel.CancelEventHandler stopClose=(sender,args)=>{closeRequested=true;args.Cancel=true;};w.Closing+=stopClose;
+            captionClose.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(()=>closeRequested,"Caption close uses cancellable window closing");w.Closing-=stopClose;
             string other=Path.GetPathRoot(box).StartsWith("C",StringComparison.OrdinalIgnoreCase)?"DriveD":"DriveC";
             if(C<RadioButton>(w,other).IsEnabled) {
                 C<RadioButton>(w,other).IsChecked=true;Expect(!button.IsEnabled,"Other disk scope excludes fixture");

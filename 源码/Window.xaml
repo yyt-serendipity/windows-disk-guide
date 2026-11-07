@@ -1,9 +1,27 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="磁盘清理助手" Width="1320" Height="840" MinWidth="800" MinHeight="580"
         WindowStartupLocation="CenterScreen" Background="#F5F7FA" FontFamily="Microsoft YaHei UI, Segoe UI"
         FontSize="13" Foreground="#20324A" UseLayoutRounding="True" SnapsToDevicePixels="True" Language="zh-CN">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="80" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+  </shell:WindowChrome.WindowChrome>
   <Window.Resources>
+    <Style x:Key="CaptionButton" TargetType="Button">
+      <Setter Property="Width" Value="44"/><Setter Property="Height" Value="32"/><Setter Property="MinHeight" Value="0"/>
+      <Setter Property="Padding" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="#395779"/>
+      <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="CaptionSurface" Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CaptionSurface" Property="Background" Value="#DFE9F6"/></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="CaptionSurface" Property="Background" Value="#CDDCF0"/></Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="CaptionSurface" Property="BorderBrush" Value="#345BC1"/><Setter TargetName="CaptionSurface" Property="BorderThickness" Value="1"/></Trigger>
+          <MultiTrigger><MultiTrigger.Conditions><Condition Property="Tag" Value="Close"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions><Setter TargetName="CaptionSurface" Property="Background" Value="#C42B1C"/><Setter Property="Foreground" Value="White"/></MultiTrigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <SolidColorBrush x:Key="CanvasBrush" Color="#F5F7FA"/>
     <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="LineBrush" Color="#D8E1EB"/>
@@ -210,7 +228,7 @@
     <Grid.ColumnDefinitions><ColumnDefinition Width="0"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Grid.RowDefinitions><RowDefinition Height="80"/><RowDefinition Height="*"/><RowDefinition Height="38"/></Grid.RowDefinitions>
     <Border x:Name="SideBackdrop" Grid.RowSpan="3" Background="#19395F" Visibility="Collapsed"><Image Source="{DynamicResource DiskIcon}" Width="38" Height="38" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Top" Margin="0,20,0,0"/></Border>
-    <Border Grid.Column="1" Background="White" BorderBrush="#E3EAF2" BorderThickness="0,0,0,1" Padding="24,0">
+    <Border Grid.Column="1" Background="{StaticResource CanvasBrush}" Padding="24,0,16,0">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,19,0">
@@ -218,7 +236,7 @@
           <StackPanel VerticalAlignment="Center"><TextBlock Text="磁盘清理助手" Foreground="#203652" FontSize="20" FontWeight="SemiBold"/>
             <TextBlock Text="找到占用，清理空间" Foreground="#60758E" FontSize="11" Margin="0,2,0,0"/></StackPanel>
         </StackPanel>
-        <StackPanel x:Name="DriveSwitcher" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+        <StackPanel x:Name="DriveSwitcher" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" shell:WindowChrome.IsHitTestVisibleInChrome="True">
           <RadioButton x:Name="DriveC" GroupName="Scope" IsChecked="True" Style="{StaticResource DriveOption}" AutomationProperties.Name="只看 C 盘">
             <StackPanel Width="119"><DockPanel><TextBlock Text="C:" FontWeight="Bold" FontFamily="Consolas"/><TextBlock x:Name="KindC" Text="本地磁盘" Margin="5,0" FontSize="12" Foreground="#3D5979"/></DockPanel>
               <TextBlock x:Name="FreeC" FontSize="11" Foreground="#526B89" Text="读取容量中"/><ProgressBar x:Name="BarC" Style="{StaticResource Meter}" Foreground="#3974D5"/></StackPanel>
@@ -232,11 +250,16 @@
           <TextBlock Text="本机应用与启动项" Foreground="#203652" FontWeight="SemiBold"/>
           <TextBlock Text="跨磁盘显示 · 当前账户可读取的记录" Foreground="#60758E" FontSize="11" Margin="0,3,0,0"/>
         </StackPanel>
-        <Button x:Name="RefreshBtn" Grid.Column="2" VerticalAlignment="Center" Background="#F1F6FF" BorderBrush="#C5D7F2" Foreground="#2459AF" AutomationProperties.Name="重新扫描" ToolTip="重新扫描 C、D 盘的清理规则和文件大小">
+        <Button x:Name="RefreshBtn" Grid.Column="2" VerticalAlignment="Bottom" Margin="32,0,0,8" shell:WindowChrome.IsHitTestVisibleInChrome="True" Background="#F1F6FF" BorderBrush="#C5D7F2" Foreground="#2459AF" AutomationProperties.Name="重新扫描" ToolTip="重新扫描 C、D 盘的清理规则和文件大小">
           <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RescanOutline}" Width="14" Height="14" Stretch="Uniform" Stroke="#2459AF" StrokeThickness="1.8" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="重新扫描"/></StackPanel>
         </Button>
       </Grid>
     </Border>
+    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top" Orientation="Horizontal" Margin="0,1,1,0">
+      <Button x:Name="MinimizeBtn" Style="{StaticResource CaptionButton}" ToolTip="最小化" AutomationProperties.Name="最小化"><Path Data="M0,5 H10" Width="10" Height="10" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1"/></Button>
+      <Button x:Name="MaximizeBtn" Style="{StaticResource CaptionButton}" ToolTip="最大化" AutomationProperties.Name="最大化"><Path x:Name="MaximizeGlyph" Data="M0.5,0.5 H9.5 V9.5 H0.5 Z" Width="10" Height="10" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1"/></Button>
+      <Button x:Name="CloseBtn" Tag="Close" Style="{StaticResource CaptionButton}" ToolTip="关闭" AutomationProperties.Name="关闭"><Path Data="M0,0 L10,10 M10,0 L0,10" Width="10" Height="10" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2"/></Button>
+    </StackPanel>
     <TabControl x:Name="Tabs" Grid.Row="1" Grid.ColumnSpan="2" Margin="20,16,20,12" Background="Transparent" BorderThickness="0" SelectedIndex="0" Template="{StaticResource TopTabs}">
       <TabItem x:Name="OverviewTab" Header="清理首页" Tag="M2,10 L11,2 L20,10 M5,8 V20 H17 V8 M9,20 V13 H13 V20" AutomationProperties.Name="清理首页">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0" TextElement.Foreground="#20324A">

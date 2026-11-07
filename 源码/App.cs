@@ -16,7 +16,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.10.0.0")]
+[assembly: AssemblyVersion("1.10.1.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -75,6 +75,15 @@ namespace DiskGuide
             Rect work = SystemParameters.WorkArea;
             View.Width = Math.Min(View.Width, work.Width);
             View.Height = Math.Min(View.Height, work.Height);
+            Get<Button>("MinimizeBtn").Click+=delegate{SystemCommands.MinimizeWindow(View);};
+            Get<Button>("MaximizeBtn").Click+=delegate{if(View.WindowState==WindowState.Maximized)SystemCommands.RestoreWindow(View);else SystemCommands.MaximizeWindow(View);};
+            Get<Button>("CloseBtn").Click+=delegate{SystemCommands.CloseWindow(View);};
+            View.StateChanged+=delegate{
+                bool maximized=View.WindowState==WindowState.Maximized;
+                var button=Get<Button>("MaximizeBtn");button.ToolTip=maximized?"还原":"最大化";
+                System.Windows.Automation.AutomationProperties.SetName(button,(string)button.ToolTip);
+                Get<System.Windows.Shapes.Path>("MaximizeGlyph").Data=Geometry.Parse(maximized?"M2.5,0.5 H9.5 V7.5 M0.5,2.5 H7.5 V9.5 H0.5 Z":"M0.5,0.5 H9.5 V9.5 H0.5 Z");
+            };
             tabs = Get<TabControl>("Tabs");
             folderTab = Get<TabItem>("FoldersTab");
             cleanupTab = Get<TabItem>("CleanupTab");
