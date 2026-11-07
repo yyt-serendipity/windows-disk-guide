@@ -544,11 +544,6 @@
             </ComboBox>
             <TextBlock x:Name="SoftwareCount" Grid.Column="2" Text="尚未读取" Margin="14,0,2,0" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
           </Grid>
-          <Border x:Name="UninstallProgress" Grid.Row="2" Background="#E8F2F0" BorderBrush="#B7D7D0" BorderThickness="1" CornerRadius="6" Padding="12,9" Margin="0,0,0,10" Visibility="Collapsed">
-            <DockPanel><Button x:Name="CloseUninstallBtn" DockPanel.Dock="Right" Content="关闭记录" Style="{StaticResource LinkButton}" Margin="8,0,0,0"/>
-              <Button x:Name="CheckUninstallBtn" DockPanel.Dock="Right" Content="检查卸载结果" Style="{StaticResource SmallButton}" Margin="12,0,0,0"/>
-              <TextBlock x:Name="UninstallStatus" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#23584F"/></DockPanel>
-          </Border>
           <Border Grid.Row="3" Style="{StaticResource Frame}" Padding="1"><Grid>
             <DataGrid x:Name="SoftwareGrid" AutomationProperties.Name="已安装软件列表" RowHeight="46">
               <DataGrid.Columns>
@@ -566,8 +561,9 @@
             </DataGrid>
             <TextBlock x:Name="SoftwareEmpty" Text="正在读取软件清单…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False"/>
           </Grid></Border>
-          <Border Grid.Row="4" Style="{StaticResource Frame}" Padding="15,12" Margin="0,10,0,0">
+          <Border x:Name="SoftwareDetailCard" Grid.Row="4" Style="{StaticResource Frame}" Padding="15,12" Margin="0,10,0,0">
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <StackPanel Margin="0,0,16,0"><TextBlock x:Name="SoftwareTitle" Text="选择要管理的软件" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="SoftwareAdvice" TextWrapping="Wrap" Margin="0,5,0,3" MaxHeight="54"/>
                 <Expander x:Name="SoftwareDetails" Header="查看软件位置和详细说明" FontSize="12" Margin="0,3,0,5">
@@ -578,6 +574,13 @@
               <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button x:Name="UninstallBtn" Content="卸载这个软件" Style="{StaticResource Action}" IsEnabled="False" Padding="14,8"/>
                 <Button x:Name="SoftwareSpaceBtn" Content="查看占用" Margin="0,7,0,0" IsEnabled="False"/>
                 <Button x:Name="SoftwareSettingsBtn" Content="Windows 软件设置" Style="{StaticResource LinkButton}" Margin="0,7,0,0"/></StackPanel>
+              <ScrollViewer x:Name="UninstallResult" Grid.Row="1" Grid.ColumnSpan="2" Visibility="Collapsed" MaxHeight="110" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                <Border BorderBrush="#D8E1EB" BorderThickness="0,1,0,0" Padding="0,9,0,0"><StackPanel>
+                  <DockPanel><TextBlock x:Name="UninstallResultTitle" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="220" Margin="0,0,16,0" ToolTip="{Binding RelativeSource={RelativeSource Self},Path=Text}"/>
+                    <TextBlock x:Name="UninstallStatus" TextWrapping="Wrap"/></DockPanel>
+                  <Button x:Name="ReviewResidualBtn" Content="查看可清理的残留" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="Collapsed"/>
+                </StackPanel></Border>
+              </ScrollViewer>
             </Grid>
           </Border>
         </Grid>

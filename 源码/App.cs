@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.8.0.0")]
+[assembly: AssemblyVersion("1.8.1.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -93,7 +93,7 @@ namespace DiskGuide
             refresh.Click += async delegate {
                 if (OnRanking) await ScanRanking();
                 else if (OnStartup) await LoadStartup();
-                else if (OnSoftware) await LoadSoftware();
+                else if (OnSoftware) await RefreshSoftware();
                 else await Refresh(false);
             };
             clean.Click += async delegate { await Refresh(true); };

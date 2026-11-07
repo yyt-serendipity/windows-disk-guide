@@ -831,12 +831,68 @@ namespace DiskGuide
             Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count==1,"Software search matches installation location");
             C<TextBox>(w,"SoftwareSearch").Clear();
             if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"software.png");
+            VerifyUninstallResult(shell,software,preview);
             VerifyActivity(shell,preview);
             w.Width=810;w.Height=580;w.UpdateLayout();
             Pump(()=>C<DataGrid>(w,"SoftwareGrid").ActualHeight>100,"Small window retains useful software rows");
             if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"software-compact.png");
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"FoldersTab");
             Expect(C<StackPanel>(w,"DriveSwitcher").Visibility==Visibility.Visible,"Returning to disk view restores separate drives");
+        }
+        private static void VerifyUninstallResult(Shell shell,SoftwareInventoryResult inventory,string preview)
+        {
+            var w=shell.View;
+            Expect(w.FindName("UninstallProgress")==null && w.FindName("CheckUninstallBtn")==null && w.FindName("CloseUninstallBtn")==null,"Legacy uninstall banner and manual check/close actions are removed");
+            var owner=new SoftwareEntry{Name="示例软件 1.0",Id="fixture-removed",InstallPath=null};
+            shell.ResidualReader=(entry,current)=>new ResidualPlan{Owner=entry,Reason="没有登记可确认的本地安装目录。"};
+            var check=shell.CheckUninstall(owner);Pump(()=>check.IsCompleted,"Automatic uninstall check completes without a result dialog");check.GetAwaiter().GetResult();
+            Expect(C<ScrollViewer>(w,"UninstallResult").IsVisible && C<TextBlock>(w,"UninstallResultTitle").Text.Contains(owner.Name) && C<TextBlock>(w,"UninstallStatus").Text.Contains("无法判断是否还有残留"),"Result appears inline and missing location is not presented as no leftovers");
+            Expect(w.OwnedWindows.Count==0 && !C<Button>(w,"ReviewResidualBtn").IsVisible && C<Button>(w,"UninstallBtn").IsEnabled,"No-result-action flow releases the next uninstall without a close-record step");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"uninstall-result.png");
+            using(var entered=new ManualResetEventSlim())using(var release=new ManualResetEventSlim())
+            {
+                var reader=shell.SoftwareReader;
+                shell.SoftwareReader=()=>{entered.Set();if(!release.Wait(10000))throw new TimeoutException();return inventory;};
+                try {
+                    var loading=shell.RefreshSoftware();Pump(()=>entered.IsSet,"Concurrent software refresh enters reader");
+                    var automatic=shell.CheckUninstall(owner);
+                    Expect(!automatic.IsCompleted,"Automatic uninstall result waits for an ongoing inventory refresh instead of being dropped");
+                    release.Set();Pump(()=>loading.IsCompleted && automatic.IsCompleted,"Queued automatic result completes after inventory refresh");
+                    loading.GetAwaiter().GetResult();automatic.GetAwaiter().GetResult();
+                    Expect(C<TextBlock>(w,"UninstallStatus").Text.StartsWith("已从软件列表中移除"),"Concurrent refresh still produces the uninstall result");
+                }finally{release.Set();shell.SoftwareReader=reader;}
+            }
+            var plan=new ResidualPlan{Owner=owner,Path=Inside("residual-preview-only"),CanRecycle=true,Bytes=1024,FileCount=1,Reason="测试安装残留"};plan.Files.Add(Path.Combine(plan.Path,"sample.dll"));
+            shell.ResidualReader=(entry,current)=>plan;
+            check=shell.CheckUninstall(owner);Pump(()=>check.IsCompleted,"Eligible leftovers are shown inline without automatic confirmation");check.GetAwaiter().GetResult();
+            Expect(C<Button>(w,"ReviewResidualBtn").IsVisible && w.OwnedWindows.Count==0,"Residual preview requires its own explicit action");
+            InspectModal(w,()=>C<Button>(w,"ReviewResidualBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                Expect(modal.Title=="卸载结果与残留预览","Explicit residual action opens the existing review before any removal");
+            });
+            Pump(()=>C<Button>(w,"UninstallBtn").IsEnabled,"Cancelling residual review restores software actions");
+            Expect(C<Button>(w,"ReviewResidualBtn").IsVisible,"Cancelling preview leaves the result available without deleting anything");
+            inventory.Items.Add(owner);
+            check=shell.CheckUninstall(owner);Pump(()=>check.IsCompleted,"Still-installed check completes");check.GetAwaiter().GetResult();
+            Expect(C<TextBlock>(w,"UninstallStatus").Text.Contains("暂未确认卸载完成") && !C<Button>(w,"ReviewResidualBtn").IsVisible,"Still-installed software is not reported as successfully uninstalled");
+            inventory.Items.Remove(owner);
+            shell.ResidualReader=(entry,current)=>new ResidualPlan{Owner=entry,Reason="没有登记可确认的本地安装目录。"};
+            check=shell.RefreshSoftware();Pump(()=>check.IsCompleted,"Normal refresh updates an unresolved uninstall");check.GetAwaiter().GetResult();
+            Expect(C<TextBlock>(w,"UninstallStatus").Text.StartsWith("已从软件列表中移除"),"Normal refresh updates the inline result without restoring a check-result button");
+            inventory.Warnings.Add("fixture read failed");
+            shell.ResidualReader=(entry,current)=>{throw new InvalidOperationException("Must not inspect residuals with incomplete inventory");};
+            check=shell.CheckUninstall(owner);Pump(()=>check.IsCompleted,"Incomplete inventory returns inline warning");check.GetAwaiter().GetResult();
+            Expect(C<TextBlock>(w,"UninstallStatus").Text.Contains("暂时无法确认") && !C<Button>(w,"ReviewResidualBtn").IsVisible,"Incomplete reads cannot offer leftover cleanup or claim success");
+            inventory.Warnings.Clear();
+            shell.ResidualReader=(entry,current)=>{throw new IOException("fixture preview unavailable");};
+            check=shell.CheckUninstall(owner);Pump(()=>check.IsCompleted,"Residual inspection error settles");check.GetAwaiter().GetResult();
+            Expect(C<TextBlock>(w,"UninstallStatus").Text.Contains("检查没有完成") && C<Button>(w,"UninstallBtn").IsEnabled,"Check failure remains visible and does not block unrelated uninstall actions");
+            shell.ResidualReader=SoftwareInventory.PreviewResidual;
+            check=shell.CheckUninstall(owner);Pump(()=>check.IsCompleted,"Restore missing-location result");check.GetAwaiter().GetResult();
+            w.Width=810;w.Height=580;w.UpdateLayout();
+            Expect(C<DataGrid>(w,"SoftwareGrid").ActualHeight>100,"Inline result leaves usable software rows in a compact window");
+            Pump(()=>C<DataGrid>(w,"SoftwareGrid").Columns.Where(c=>c.Visibility==Visibility.Visible).Sum(c=>c.ActualWidth)<=C<DataGrid>(w,"SoftwareGrid").ActualWidth,"Compact result layout settles without horizontal overflow");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"uninstall-result-compact.png");
+            w.Width=1180;w.Height=800;
         }
         private static void SaveRealPreviews(string preview)
         {
