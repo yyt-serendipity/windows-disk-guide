@@ -191,7 +191,7 @@ namespace DiskGuide
             if (entry == null || !entry.CanUninstall || uninstallLaunching || pendingUninstall != null || softwareLoading) return;
             string action = entry.Kind == "商店应用" ? "Windows 将移除此账户的应用包，应用数据也可能随之移除。" : "将打开该软件登记的官方卸载程序，请完成它的提示。";
             if (MessageBox.Show(View, "即将卸载：" + entry.Name + "\n发布者：" + entry.Publisher + "\n版本：" + entry.Version +
-                "\n位置：" + entry.InstallPath + "\n\n" + action + "\n卸载可能删除配置或存档，请先保存需要的内容。完成后检查安装目录残留，额外清除前还会显示清单。",
+                "\n位置：" + entry.InstallPath + "\n\n" + action + "\n卸载可能删除配置或存档，请先保存需要的内容。保留规则不能约束官方卸载器。完成后检查安装目录残留，额外清除前还会显示清单。",
                 "确认卸载这个软件", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) != MessageBoxResult.OK) return;
             pendingUninstall = entry; uninstallLaunching = true;
             Get<Border>("UninstallProgress").Visibility = Visibility.Visible;
@@ -262,6 +262,8 @@ namespace DiskGuide
                 if (softwareInventory.Items.Any(x => x.Id == owner.Id))
                 { Label("UninstallStatus", "「" + owner.Name + "」仍登记为已安装。请完成官方卸载后再次检查；已取消则关闭这条记录。"); return; }
                 var plan = await Task.Run(() => SoftwareInventory.PreviewResidual(owner, softwareInventory));
+                var protection=preserveStore.Load();
+                if(protection.BlocksTree(plan.Path)){plan.CanRecycle=false;plan.Reason=protection.Error??"此安装目录与永久保留规则重叠，不执行残留回收。";}
                 if (lifetime.IsCancellationRequested) return;
                 Label("UninstallStatus", "「" + owner.Name + "」的原安装登记已移除。" + plan.Reason);
                 if (ShowResidualPlan(owner, plan))
@@ -269,7 +271,14 @@ namespace DiskGuide
                     IntPtr window = new System.Windows.Interop.WindowInteropHelper(View).Handle;
                     var completion = new TaskCompletionSource<bool>();
                     var worker = new System.Threading.Thread(() => {
-                        try { SoftwareInventory.RecycleResidual(plan, window); completion.SetResult(true); }
+                        try {
+                            using(var lease=preserveStore.Acquire())
+                            {
+                                if(lease.Snapshot.BlocksTree(plan.Path))throw new IOException(lease.Snapshot.Error??"永久保留规则已覆盖该目录，未回收残留。");
+                                SoftwareInventory.RecycleResidual(plan, window);
+                            }
+                            completion.SetResult(true);
+                        }
                         catch (Exception ex) { completion.SetException(ex); }
                     });
                     worker.SetApartmentState(System.Threading.ApartmentState.STA); worker.IsBackground = true; worker.Start();

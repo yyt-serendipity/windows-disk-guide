@@ -312,6 +312,7 @@ namespace DiskGuide
             Get<Button>("SizeBtn").IsEnabled = f != null && !f.IsLink && !busy;
             Get<Button>("OpenBtn").IsEnabled = f != null && !f.IsLink;
             Get<Button>("FolderRankBtn").IsEnabled = f != null && !f.IsLink && !busy;
+            Get<Button>("KeepFolderBtn").IsEnabled = f != null && !f.IsLink && !busy;
             Get<Button>("RelatedBtn").IsEnabled = !busy && f != null && f.Related.Count != 0;
             Get<Button>("RelatedBtn").Content = f != null && f.Related.Count > 0 ? "查看清理项 (" + f.Related.Count + ")" : "查看清理项";
             string note = progressText;
@@ -358,7 +359,7 @@ namespace DiskGuide
                         progressText = "已读 " + Engine.Size(v.Item1) + " · " + v.Item2.ToString("N0") + " 个文件";
                         Label("MeasureNote", progressText);
                     });
-                    var report = await Task.Run(() => FolderUsage.Read(f.PathText, cts.Token,
+                    var report = await ScanWork.Run(() => FolderUsage.Read(f.PathText, cts.Token,
                         (bytes, files) => reporter.Report(Tuple.Create(bytes, files))), cts.Token);
                     if (cts.IsCancellationRequested || !ReferenceEquals(f, inspected)) return;
                     usage[f.PathText] = report;

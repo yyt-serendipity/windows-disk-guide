@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Automation.Peers;
@@ -96,6 +97,10 @@ namespace DiskGuide
                 done=Engine.Clean(scanned,CancellationToken.None);
             Expect(done.Values.Sum(v=>v.Removed)==4,"Only four verified cache files deleted");
             Expect(done.Values.Sum(v=>v.Skipped)>=5,"Replaced, locked, changed, hardlinked and redirected files skipped");
+            var details=done.Values.SelectMany(v=>v.Details).ToList();
+            Expect(details.Single(x=>x.PathText==locked).Code==CleanCode.Busy,"Locked file has an actionable busy result");
+            Expect(details.Single(x=>x.PathText==modified).Code==CleanCode.Changed && details.Single(x=>x.PathText==swap).Code==CleanCode.Changed,"Changed and replaced files have specific results");
+            Expect(details.Count(x=>x.Code==CleanCode.Deleted)==4 && details.All(x=>!String.IsNullOrEmpty(x.Reason)),"Every attempted file has a reason and totals match details");
             Expect(new[]{webOk,index,old,log}.All(x=>!File.Exists(x)),"Removable test files gone");
             Expect(new[]{privateDoc,nested,fresh,linked,locked,modified,swap,gpu,currentLog,decoy,late}.All(File.Exists),"Protected files survived");
             Expect(Engine.Clean(scanned,CancellationToken.None).Values.Sum(v=>v.Removed)<=1,"Retry targets old snapshot only");
@@ -123,6 +128,112 @@ namespace DiskGuide
             Expect(refused.Removed==0 && refused.Skipped==1 && File.Exists(migratedFile),"Changed migration link invalidates snapshot");
         }
 
+        private static void VerifyPreserve()
+        {
+            var store=new PreserveStore(Inside(@"settings\keep-rules.xml"));
+            Expect(store.Load().Error==null && store.Load().Rules.Count==0,"Missing settings means no exclusions");
+            string protectedFile=Put(@"preserve\protected.tmp","keep",true), deleted=Put(@"preserve\delete.tmp","delete",true);
+            string excluded=Put(@"preserve\excluded.tmp","exclude",true), missing=Put(@"preserve\missing.tmp","missing",true);
+            var rule=R("preserve",FileKind.OldTemp,7);
+            var rows=Engine.Scan(new[]{rule},CancellationToken.None);
+            rows.Single().Files.Single(x=>x.Path==excluded).Included=false;File.Delete(missing);
+            store.Add(protectedFile,false);
+            var loaded=new PreserveStore(store.FilePath).Load();
+            Expect(loaded.Contains(protectedFile) && !loaded.Contains(deleted),"Permanent file rule survives new store instance");
+            var result=Engine.Clean(rows,CancellationToken.None,loaded)[rule.Path];
+            Expect(result.Removed==1 && result.Preserved==2 && result.Skipped==1,"Per-file totals distinguish deletion, preservation and failure");
+            Expect(result.Details.Single(x=>x.PathText==protectedFile).Code==CleanCode.Kept && File.Exists(protectedFile),"Rule added after scan prevents deletion");
+            Expect(result.Details.Single(x=>x.PathText==excluded).Code==CleanCode.Excluded && File.Exists(excluded),"Temporary exclusion reported separately");
+            Expect(result.Details.Single(x=>x.PathText==missing).Code==CleanCode.Missing,"Disappeared file has specific result");
+            rows=Engine.Scan(new[]{rule},CancellationToken.None,loaded);
+            var entry=rows.Single().Files.Single(x=>x.Path==protectedFile);var choice=new FileChoice(entry);choice.Included=true;
+            Expect(entry.Preserved && !choice.Included && !choice.CanInclude,"Protected file cannot be reselected in preview");
+            store.Add(Inside("preserve"),true);loaded=store.Load();
+            Expect(loaded.Contains(Inside(@"preserve\future\new.tmp")) && !loaded.Contains(Inside(@"preserve-copy\new.tmp")),"Directory rules cover future descendants but not siblings");
+            Expect(loaded.BlocksTree(box) && loaded.BlocksTree(Inside("preserve")) && !loaded.BlocksTree(Inside("preserve-copy")),"Residual protection covers ancestors and descendants only");
+            var protectedRow=Engine.Scan(new[]{rule},CancellationToken.None,loaded).Single();
+            Expect(!protectedRow.CanPick && protectedRow.EligibleBytes==0,"Entire protected group is not eligible");
+            store.Remove(loaded.Rules.Single(x=>x.Directory));
+            Expect(store.Load().Rules.Count==1 && store.Load().Contains(protectedFile),"Removing one rule keeps other rules");
+            bool locked=false;
+            using(var lease=store.Acquire()) {try{store.Add(excluded,false);}catch(IOException){locked=true;}}
+            Expect(locked && store.Load().Rules.Count==1,"Active cleanup lease blocks concurrent setting mutation");
+            store.Add(excluded,false);Expect(store.Load().Rules.Count==2,"Settings can be changed after cleanup lease ends");
+            string physical=Inside("preserve-target"), alias=Inside("preserve-alias");Directory.CreateDirectory(physical);Junction(alias,physical);
+            store.Add(Path.Combine(alias,"future"),true);loaded=store.Load();
+            Expect(loaded.Contains(Path.Combine(physical,@"future\new.tmp")) && loaded.Contains(Path.Combine(alias,@"future\new.tmp")),"Rule saves original and resolved paths including future descendants");
+            var rootRule=PreserveStore.Create(Path.GetPathRoot(box),true);
+            Expect(rootRule.Matches(protectedFile),"Root directory preservation covers descendants");
+            foreach(string invalid in new[]{"relative",@"E:\unsupported",@"C:\cache\*",@"C:\cache\?",@"C:\cache:stream"})
+            {
+                bool refused=false;try{PreserveStore.Normalize(invalid);}catch(ArgumentException){refused=true;}
+                Expect(refused,"Reject ambiguous preserve path "+invalid);
+            }
+            foreach(string xml in new[]{"<broken", "<keepRules version='99'/>","<!DOCTYPE keepRules [<!ENTITY x 'data'>]><keepRules version='1'/>"})
+            {
+                File.WriteAllText(store.FilePath,xml);loaded=store.Load();
+                Expect(loaded.Error!=null && loaded.Contains(deleted),"Invalid settings fail closed");
+                var freshRows=Engine.Scan(new[]{rule},CancellationToken.None);
+                result=Engine.Clean(freshRows,CancellationToken.None,loaded)[rule.Path];
+                Expect(result.Removed==0 && result.Details.All(x=>x.Code==CleanCode.ConfigError) && File.Exists(protectedFile),"Invalid settings prevent deletion with explicit result");
+                bool refused=false;try{store.Add(deleted,false);}catch(IOException){refused=true;}
+                Expect(refused && File.ReadAllText(store.FilePath)==xml,"Invalid settings are never silently replaced");
+            }
+            result=Engine.Clean(Engine.Scan(new[]{rule},CancellationToken.None),new CancellationToken(true))[rule.Path];
+            Expect(result.Removed==0 && result.Details.All(x=>x.Code==CleanCode.Cancelled),"Cancelled cleanup accounts for every remaining file");
+            Expect(Engine.ErrorCode(5)==CleanCode.Permission && Engine.ErrorCode(32)==CleanCode.Busy && Engine.ErrorCode(2)==CleanCode.Missing,"Native error mapping distinguishes actionable failures");
+            var linkedStore=new PreserveStore(Path.Combine(alias,@"new-settings\keep-rules.xml"));bool rejected=false;
+            try{linkedStore.Add(protectedFile,false);}catch(IOException){rejected=true;}
+            Expect(rejected && !Directory.Exists(Path.Combine(physical,"new-settings")),"Settings link rejected before creating any directories");
+        }
+        private static void VerifyScanWork()
+        {
+            using(var entered=new ManualResetEventSlim())using(var release=new ManualResetEventSlim())using(var cancel=new CancellationTokenSource())
+            {
+                int active=0,maximum=0;bool queuedRan=false;
+                var first=ScanWork.Run(()=>{maximum=Math.Max(maximum,Interlocked.Increment(ref active));entered.Set();try{if(!release.Wait(10000))throw new TimeoutException();return 1;}finally{Interlocked.Decrement(ref active);}},CancellationToken.None);
+                try
+                {
+                    Expect(entered.Wait(5000),"First scan starts");
+                    var queued=ScanWork.Run(()=>{queuedRan=true;return 2;},cancel.Token);cancel.Cancel();
+                    bool cancelled=false;try{queued.GetAwaiter().GetResult();}catch(OperationCanceledException){cancelled=true;}
+                    Expect(cancelled && !queuedRan,"Queued scan cancels without executing");
+                    var next=ScanWork.Run(()=>{maximum=Math.Max(maximum,Interlocked.Increment(ref active));Interlocked.Decrement(ref active);return 3;},CancellationToken.None);
+                    Expect(!next.IsCompleted,"Second scan waits for active scan");release.Set();
+                    Expect(first.GetAwaiter().GetResult()==1 && next.GetAwaiter().GetResult()==3 && maximum==1,"Heavy scans execute serially");
+                }
+                finally{release.Set();first.GetAwaiter().GetResult();}
+            }
+            bool failed=false;try{ScanWork.Run<int>(()=>{throw new IOException("fixture");},CancellationToken.None).GetAwaiter().GetResult();}catch(IOException){failed=true;}
+            Expect(failed && ScanWork.Run(()=>7,CancellationToken.None).GetAwaiter().GetResult()==7,"Failed worker releases scan gate");
+        }
+        private static void VerifyKeepUi(Shell shell,PreserveStore store,string preview)
+        {
+            var w=shell.View;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"CleanupTab");
+            InspectModal(w,()=>C<Button>(w,"KeepRulesBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                var input=Descendants<TextBox>(modal).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="保留路径");
+                input.Text=Inside("button-copy");
+                Descendants<Button>(modal).Single(b=>Object.Equals(b.Content,"添加保留")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Expect(Child<DataGrid>(modal).Items.Count==1 && store.Load().Contains(Inside(@"button-copy\keep.tmp")),"Keep rules UI persists folder rule");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"keep-rules.png");
+                modal.Width=620;modal.Height=420;modal.UpdateLayout();
+                Expect(Child<DataGrid>(modal).ActualHeight>70,"Keep rules remain usable in a small window");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"keep-rules-compact.png");
+            });
+            var grid=C<DataGrid>(w,"CleanGrid");var row=grid.Items.Cast<ScanRow>().Single(x=>x.Rule.Path==Inside("button-copy"));grid.SelectedItem=row;
+            Expect(!row.CanPick && row.Files.Single().Preserved,"New rule immediately protects existing snapshot");
+            InspectModal(w,()=>C<Button>(w,"PreviewFilesBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                var files=Child<DataGrid>(modal);files.UpdateLayout();var check=Child<CheckBox>(files.ItemContainerGenerator.ContainerFromIndex(0));
+                Expect(check!=null && !check.IsEnabled,"Protected preview checkbox is disabled");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"protected-preview.png");
+            });
+            InspectModal(w,()=>C<Button>(w,"KeepRulesBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                Descendants<Button>(modal).Single(b=>Object.Equals(b.Content,"移除选中规则")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Expect(Child<DataGrid>(modal).Items.Count==0 && store.Load().Rules.Count==0,"Keep rule removal updates durable state");
+            });
+            Expect(File.Exists(Inside(@"button-copy\keep.tmp")),"Rule changes never delete files");
+        }
         private static void Pump(Func<bool> predicate,string failure)
         {
             var sw=Stopwatch.StartNew();
@@ -206,7 +317,8 @@ namespace DiskGuide
             string busyFile=Put(@"busy-app\in-use.tmp","active",true);
             var busyRule=R("busy-app",FileKind.OldTemp,7);
             using(var process=Process.GetCurrentProcess()) busyRule.Processes=new[]{process.ProcessName};
-            var fixture=new Shell(()=>new List<Rule>{R("button",FileKind.OldTemp,7),R("shader",FileKind.Shader,0),R("button-copy",FileKind.OldTemp,7),busyRule});
+            var uiStore=new PreserveStore(Inside(@"ui-settings\keep-rules.xml"));
+            var fixture=new Shell(()=>new List<Rule>{R("button",FileKind.OldTemp,7),R("shader",FileKind.Shader,0),R("button-copy",FileKind.OldTemp,7),busyRule},uiStore);
             Window w=fixture.View;Hidden(w);var button=C<Button>(w,"CleanBtn");
             Expect(C<RadioButton>(w,"DriveC").IsChecked==true || !Engine.ReadyFixed(@"C:\"),"Landing page starts at C root when available");
             string fixtureDrive="Drive"+Path.GetPathRoot(box)[0];
@@ -244,6 +356,15 @@ namespace DiskGuide
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Pump(()=>C<Button>(w,"RefreshBtn").IsEnabled && C<TextBlock>(w,"StatusText").Text.StartsWith("本次已删除"),"UI cleanup did not finish");
             Expect(!File.Exists(eligible) && File.Exists(keep) && File.Exists(sibling) && File.Exists(Inside(@"shader\0123456789abcdef.nvph")),"Scoped one-click preserves other checked folders, personal files and optional files");
+            Expect(C<Button>(w,"ResultsBtn").IsEnabled,"Cleanup exposes detailed results");
+            InspectModal(w,()=>C<Button>(w,"ResultsBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),modal=>{
+                var resultGrid=Child<DataGrid>(modal);
+                Expect(resultGrid.Items.Cast<FileOutcome>().Single().Code==CleanCode.Deleted,"Results window binds the actual cleanup outcome");
+                if(!String.IsNullOrWhiteSpace(preview))Image(modal,preview,"cleanup-results.png");
+                var search=Descendants<TextBox>(modal).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="搜索清理结果");
+                search.Text="___no_result___";Expect(resultGrid.Items.Count==0,"Result search filters rows");search.Clear();
+                Child<ComboBox>(modal).SelectedIndex=1;Expect(resultGrid.Items.Count==0,"Result category excludes successful deletes");
+            });
             C<Button>(w,"ClearScopeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Expect(grid.Items.Count==4 && grid.Items.Cast<ScanRow>().Single(x=>x.Rule.Path==Inside("button-copy")).Pick,"Clearing scope restores other selections");
             filter.SelectedIndex=2;
@@ -296,6 +417,7 @@ namespace DiskGuide
             Expect(Grid.GetColumn(C<Border>(w,"DetailPane"))==2,"Short window keeps room for list rows");
             VerifyManagementUi(fixture, preview);
             VerifySpaceUi(fixture, preview);
+            VerifyKeepUi(fixture,uiStore,preview);
             w.Close();
 
             if (!String.IsNullOrWhiteSpace(preview)) SaveRealPreviews(preview);
@@ -554,7 +676,7 @@ namespace DiskGuide
                 Directory.CreateDirectory(fresh);
                 box=fresh;
                 System.Windows.Media.RenderOptions.ProcessRenderMode=System.Windows.Interop.RenderMode.SoftwareOnly;
-                VerifyEngine(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
+                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
             }
             catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
             finally {if(box!=null && Directory.Exists(box))DeleteFixture(box);}

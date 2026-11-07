@@ -73,7 +73,7 @@ namespace DiskGuide
             });
             try
             {
-                var result=await Task.Run(()=>FolderUsage.ReadRanking(path,cts.Token,(bytes,files)=>((IProgress<Tuple<long,long>>)progress).Report(Tuple.Create(bytes,files))));
+                var result=await ScanWork.Run(()=>FolderUsage.ReadRanking(path,cts.Token,(bytes,files)=>((IProgress<Tuple<long,long>>)progress).Report(Tuple.Create(bytes,files))),cts.Token);
                 if(ranking!=cts || cts.IsCancellationRequested)return;
                 ranked=result;Label("RankTotal",result.Total.SizeText);
                 Label("RankNotice","已读 "+result.Total.Files.ToString("N0")+" 个文件 · 跳过 "+result.Total.Skipped+" 处 · "+DateTime.Now.ToString("HH:mm:ss")+" · 文件长度合计，不是可释放空间");
@@ -145,7 +145,7 @@ namespace DiskGuide
                 var progress=new Progress<string>(text=>{if(!finished && !cts.IsCancellationRequested)state.Text=text;});
                 try
                 {
-                    var result=await Task.Run(()=>AppSpace.Read(AppSpace.Locate(app,inventory,ruleSnapshot),cts.Token,text=>((IProgress<string>)progress).Report(text)));
+                    var result=await ScanWork.Run(()=>AppSpace.Read(AppSpace.Locate(app,inventory,ruleSnapshot),cts.Token,text=>((IProgress<string>)progress).Report(text)),cts.Token);
                     if(cts.IsCancellationRequested)return;
                     grid.ItemsSource=result.Locations;grid.SelectedItem=result.Locations.FirstOrDefault();
                     string qualifier=result.Partial?"（已读下限）":"（已发现位置）";

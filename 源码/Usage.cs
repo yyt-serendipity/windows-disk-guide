@@ -76,6 +76,7 @@ namespace DiskGuide
             var pending = new Stack<Tuple<string, UsagePart>>();
             pending.Push(Tuple.Create(path, (UsagePart)null));
             var clock = Stopwatch.StartNew();
+            var pacer=new ScanPacer();
             while (pending.Count != 0)
             {
                 token.ThrowIfCancellationRequested();
@@ -97,7 +98,7 @@ namespace DiskGuide
                         else if (String.Equals(directory, group.PathText, Engine.CI)) group.Readable = true;
                         while (more)
                         {
-                            token.ThrowIfCancellationRequested();
+                            pacer.Check(token);
                             FileSystemInfo item = entries.Current;
                             try
                             {

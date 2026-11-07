@@ -14,7 +14,10 @@ namespace DiskGuide
         internal readonly Entry Original;
         public FileChoice(Entry file) { Original = file; included = file.Included; }
         private bool included;
-        public bool Included { get { return included; } set { if (included == value) return; included = value; var e = PropertyChanged; if (e != null) e(this,new PropertyChangedEventArgs("Included")); } }
+        public bool Included { get { return included && !Original.Preserved; } set { if (Original.Preserved || included == value) return; included = value; var e = PropertyChanged; if (e != null) e(this,new PropertyChangedEventArgs("Included")); } }
+        public bool CanInclude { get { return !Original.Preserved; } }
+        public string Protection { get { return Original.Preserved?"永久保留":"可调整"; } }
+        public void RefreshProtection(){var e=PropertyChanged;if(e!=null)foreach(string name in new[]{"Included","CanInclude","Protection"})e(this,new PropertyChangedEventArgs(name));}
         public string Name { get { return Path.GetFileName(Original.Path); } }
         public string PathText { get { return Original.Path; } }
         public long Bytes { get { return Original.Bytes; } }
@@ -42,7 +45,7 @@ namespace DiskGuide
                 } };
         }
         internal static void ApplyChoices(IEnumerable<FileChoice> choices)
-        { foreach (var item in choices) item.Original.Included = item.Included; }
+        { foreach (var item in choices) if(!item.Original.Preserved)item.Original.Included = item.Included; }
         private void PreviewFiles()
         {
             var row = cleanGrid.SelectedItem as ScanRow;
@@ -66,13 +69,15 @@ namespace DiskGuide
             var grid = new DataGrid { AutoGenerateColumns=false,IsReadOnly=false,CanUserAddRows=false,CanUserDeleteRows=false,RowHeight=38,SelectionMode=DataGridSelectionMode.Single };
             var box = new FrameworkElementFactory(typeof(CheckBox));
             box.SetBinding(CheckBox.IsCheckedProperty,new Binding("Included") { Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged });
+            box.SetBinding(CheckBox.IsEnabledProperty,new Binding("CanInclude"));
             box.SetValue(CheckBox.VerticalAlignmentProperty,VerticalAlignment.Center);box.SetValue(CheckBox.HorizontalAlignmentProperty,HorizontalAlignment.Center);
             grid.Columns.Add(new DataGridTemplateColumn { Header="清理",CellTemplate=new DataTemplate { VisualTree=box },Width=48 });
             grid.Columns.Add(TextColumn("文件名","Name",150));
             grid.Columns.Add(TextColumn("完整路径","PathText",-1));
             grid.Columns.Add(TextColumn("大小","SizeText",95,"Bytes"));grid.Columns.Add(TextColumn("最后修改","ModifiedText",150));
+            grid.Columns.Add(TextColumn("保留规则","Protection",85));
             foreach (var column in grid.Columns.Skip(1)) column.IsReadOnly=true;
-            grid.SizeChanged+=delegate{FitColumns(grid,2,48,150,0,95,150);};
+            grid.SizeChanged+=delegate{FitColumns(grid,2,48,130,0,85,140,85);};
             Grid.SetRow(grid,2);body.Children.Add(grid);
             Action counts = () => { count.Text = "本项目已选 " + choices.Count(x=>x.Included).ToString("N0") + " / " + choices.Count.ToString("N0") + " 个文件 · " + Engine.Size(choices.Where(x=>x.Included).Sum(x=>x.Bytes)) + " · " + row.Status + (row.Pick ? "" : " · 主列表尚未勾选此项目"); };
             Action filter = () => { grid.ItemsSource=choices.Where(x=>HasText(x.PathText,search.Text.Trim()) || search.Text.Trim().Length==0).ToList();counts(); };
@@ -84,7 +89,13 @@ namespace DiskGuide
             var apply = new Button { Content="保存文件选择",Style=(Style)View.FindResource("Action"),Margin=new Thickness(10,0,0,0) };
             var cancel = new Button { Content="取消",IsCancel=true,Margin=new Thickness(10,0,0,0) };
             DockPanel.SetDock(apply,Dock.Right);footer.Children.Add(apply);DockPanel.SetDock(cancel,Dock.Right);footer.Children.Add(cancel);
-            footer.Children.Add(new TextBlock { Text="这里只保存选择，不删除文件。\n之后点击主页面“一键清理”才会执行。",TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center });
+            var permanent=new Button{Content="始终保留选中文件",Margin=new Thickness(10,0,0,0),IsEnabled=false};DockPanel.SetDock(permanent,Dock.Right);footer.Children.Add(permanent);
+            grid.SelectionChanged+=delegate{var item=grid.SelectedItem as FileChoice;permanent.IsEnabled=item!=null && !item.Original.Preserved;};
+            permanent.Click+=delegate{
+                var item=grid.SelectedItem as FileChoice;
+                if(item!=null && SaveKeep(item.PathText,false,dialog)){foreach(var choice in choices)choice.RefreshProtection();permanent.IsEnabled=false;counts();}
+            };
+            footer.Children.Add(new TextBlock { Text="普通勾选点击保存后生效；永久保留立即保存。\n本窗口不删除文件。",TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center });
             Grid.SetRow(footer,3);body.Children.Add(footer);dialog.Content=new Border {Background=View.Background,Child=body};
             apply.Click += delegate { grid.CommitEdit(DataGridEditingUnit.Cell,true);grid.CommitEdit(DataGridEditingUnit.Row,true);ApplyChoices(choices);dialog.DialogResult=true; };
             filter();dialog.ShowDialog();Summary();ShowCleanDetail();

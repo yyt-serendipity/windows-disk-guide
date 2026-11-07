@@ -33,7 +33,7 @@ namespace DiskGuide
         public long SizeBytes { get { return measured == null || !measured.Readable ? -1 : measured.Bytes; } }
         public string SizeText { get { return IsLink ? "已跳过" : measured == null ? "待统计" : measured.SizeText; } }
         public List<ScanRow> Related = new List<ScanRow>();
-        public long ReadyBytes { get { return Related.Where(r => r.CanPick && !r.Rule.Optional).Sum(r => r.Bytes); } }
+        public long ReadyBytes { get { return Related.Where(r => r.CanPick && !r.Rule.Optional).Sum(r => r.EligibleBytes); } }
         public string ReadyText { get { return ReadyBytes > 0 ? Engine.Size(ReadyBytes) : "—"; } }
         public static bool ContainsRule(string folder, string rulePath)
         { return String.Equals(folder, rulePath, Engine.CI) || Engine.Below(rulePath, folder); }

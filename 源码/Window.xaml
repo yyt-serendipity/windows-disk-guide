@@ -247,6 +247,7 @@
                     <Button x:Name="RelatedBtn" Style="{StaticResource Action}" Content="查看清理项" Padding="10,6" Margin="0,0,6,2" IsEnabled="False"/>
                     <Button x:Name="OpenBtn" Content="打开目录" Padding="10,6" Margin="0,0,0,2" ToolTip="在资源管理器中打开" IsEnabled="False"/>
                     <Button x:Name="FolderRankBtn" Content="查看空间排行" Padding="10,6" Margin="0,6,0,2" ToolTip="统计此目录的子文件夹和最大文件" IsEnabled="False"/>
+                    <Button x:Name="KeepFolderBtn" Content="始终保留此目录" Padding="10,6" Margin="6,6,0,2" ToolTip="把此目录及其全部内容加入永久保留规则" IsEnabled="False"/>
                   </WrapPanel>
                 </Grid>
               </ScrollViewer>
@@ -296,6 +297,7 @@
                 <StackPanel Orientation="Horizontal" Margin="0,3,0,0"><TextBlock Text="本次已选" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
                   <TextBlock x:Name="ChosenSize" Margin="9,0,12,0" Text="0 B" FontSize="23" FontWeight="SemiBold" Foreground="#214474" VerticalAlignment="Center"/>
                   <TextBlock x:Name="ChosenCount" Style="{StaticResource Muted}" VerticalAlignment="Center" Text="正在扫描…"/></StackPanel>
+                <TextBlock x:Name="KeepNotice" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
               </StackPanel>
               <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button x:Name="CleanBtn" Style="{StaticResource Action}" Content="一键清理" Padding="21,8" IsEnabled="False"/>
                 <Button x:Name="PreviewFilesBtn" Content="预览所选项目文件" Style="{StaticResource LinkButton}" Margin="0,5,0,0" IsEnabled="False"/></StackPanel>
@@ -429,6 +431,8 @@
     </TabControl>
     <Border Grid.Row="2" Background="#E8EFF6" BorderBrush="#D4DFEA" BorderThickness="0,1,0,0" Padding="20,0">
       <DockPanel><Button x:Name="GuideBtn" Content="使用说明" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" ToolTip="阅读兼容性、清理规则与实现原理"/>
+        <Button x:Name="KeepRulesBtn" Content="保留规则" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0"/>
+        <Button x:Name="ResultsBtn" Content="清理结果" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0" IsEnabled="False"/>
         <TextBlock x:Name="StatusText" Text="正在准备扫描…" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="#3B556C"/></DockPanel>
     </Border>
   </Grid>

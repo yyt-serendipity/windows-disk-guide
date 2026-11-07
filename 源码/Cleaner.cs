@@ -64,6 +64,7 @@ namespace DiskGuide
         public long Bytes, Modified;
         public uint Volume, IndexHigh, IndexLow;
         public bool Included = true;
+        public bool Preserved;
         public string Identity { get { return Path + "|" + Volume + "|" + IndexHigh + "|" + IndexLow + "|" + Bytes + "|" + Modified; } }
     }
 
@@ -74,15 +75,16 @@ namespace DiskGuide
         public int Errors;
         public bool BusyApp;
         public long Bytes { get; set; }
-        public long SelectedBytes { get { return Files.Where(f => f.Included).Sum(f => f.Bytes); } }
-        public int SelectedCount { get { return Files.Count(f => f.Included); } }
+        public long EligibleBytes { get { return Files.Where(f=>!f.Preserved).Sum(f=>f.Bytes); } }
+        public long SelectedBytes { get { return Files.Where(f => f.Included && !f.Preserved).Sum(f => f.Bytes); } }
+        public int SelectedCount { get { return Files.Count(f => f.Included && !f.Preserved); } }
         public string Previous = "";
         public string Name { get { return Rule.Name; } }
         public string PathText { get { return Rule.Path; } }
         public string Drive { get { return PathText.Substring(0, 2).ToUpperInvariant(); } }
         public string SizeText { get { return Engine.Size(Bytes); } }
-        public bool CanPick { get { return !BusyApp && Files.Count != 0; } }
-        public string Status { get { return BusyApp ? "先退出应用" : Files.Count == 0 ? (Errors > 0 ? "访问受限" : "无符合文件") : Rule.Optional ? "手动勾选" : "可一键清理"; } }
+        public bool CanPick { get { return !BusyApp && Files.Any(f=>!f.Preserved); } }
+        public string Status { get { return BusyApp ? "先退出应用" : Files.Count == 0 ? (Errors > 0 ? "访问受限" : "无符合文件") : Files.All(f=>f.Preserved) ? "保留规则保护" : Rule.Optional ? "手动勾选" : "可一键清理"; } }
         public string Ink { get { return BusyApp || Rule.Optional ? "#92520D" : CanPick ? "#006C61" : "#637389"; } }
         public string Detail { get { return Rule.Why + "  符合规则 " + Files.Count.ToString("N0") + " 个文件。" +
                     (BusyApp ? " 检测到相关程序正在运行，退出后请重新扫描。" : "") +
@@ -95,8 +97,27 @@ namespace DiskGuide
     internal sealed class Outcome
     {
         public long Bytes;
-        public int Removed, Skipped;
-        public string Text { get { return "已删除 " + Removed.ToString("N0") + " 个文件，共 " + Engine.Size(Bytes) + "，跳过 " + Skipped.ToString("N0") + " 个。"; } }
+        public int Removed, Skipped, Preserved;
+        public readonly List<FileOutcome> Details=new List<FileOutcome>();
+        public string Text { get { return "已删除 " + Removed.ToString("N0") + " 个文件，共 " + Engine.Size(Bytes) + "，跳过 " + Skipped.ToString("N0") + " 个"+(Preserved>0?"，保留 "+Preserved+" 个":"")+"。"; } }
+        public void Add(FileOutcome item)
+        {
+            Details.Add(item);
+            if(item.Code==CleanCode.Deleted){Removed++;Bytes+=item.Bytes;}
+            else if(item.Code==CleanCode.Kept || item.Code==CleanCode.Excluded)Preserved++;
+            else Skipped++;
+        }
+    }
+    internal enum CleanCode { Deleted, Excluded, Kept, Busy, Permission, Missing, Changed, Unsafe, RuleChanged, ConfigError, Cancelled, Failed }
+    internal sealed class FileOutcome
+    {
+        public string PathText { get; set; }
+        public string Project { get; set; }
+        public CleanCode Code { get; set; }
+        public string Reason { get; set; }
+        public long Bytes { get; set; }
+        public string SizeText { get { return Engine.Size(Bytes); } }
+        public string Status { get { switch(Code){case CleanCode.Deleted:return "已删除";case CleanCode.Excluded:return "手动排除";case CleanCode.Kept:return "永久保留";case CleanCode.Busy:return "被占用";case CleanCode.Permission:return "权限不足";case CleanCode.Missing:return "已不存在";case CleanCode.Changed:return "文件已变化";case CleanCode.Unsafe:return "安全检查未通过";case CleanCode.RuleChanged:return "规则已变化";case CleanCode.ConfigError:return "保留规则不可读";case CleanCode.Cancelled:return "已取消";default:return "未完成";} } }
     }
 
     internal static class Engine
@@ -161,9 +182,10 @@ namespace DiskGuide
                 using (p) { try { result.Add(p.ProcessName); } catch (InvalidOperationException) {} catch (Win32Exception) {} }
             return result;
         }
-        public static List<ScanRow> Scan(IEnumerable<Rule> rules, CancellationToken token)
+        public static List<ScanRow> Scan(IEnumerable<Rule> rules, CancellationToken token, KeepSnapshot keep = null)
         {
             var rows = new List<ScanRow>(); var active = Running(); DateTime now = DateTime.UtcNow;
+            var pacer=new ScanPacer();
             foreach (Rule rule in rules)
             {
                 token.ThrowIfCancellationRequested();
@@ -182,7 +204,7 @@ namespace DiskGuide
                         if (CheckDirectory(current) != Boundary.Clear) { row.Errors++; continue; }
                         foreach (FileSystemInfo item in new DirectoryInfo(current).EnumerateFileSystemInfos())
                         {
-                            token.ThrowIfCancellationRequested();
+                            pacer.Check(token);
                             try
                             {
                                 FileAttributes a = item.Attributes;
@@ -198,6 +220,7 @@ namespace DiskGuide
                                 Entry entry = Snapshot(file.FullName);
                                 if (entry == null) { row.Errors++; continue; }
                                 if (!rule.Accepts(entry.Path, DateTime.FromFileTimeUtc(entry.Modified), now)) continue;
+                                entry.Preserved=keep!=null && keep.Contains(entry.Path);
                                 row.Files.Add(entry); row.Bytes += entry.Bytes;
                             }
                             catch (Exception ex) { if (!FileProblem(ex)) throw; row.Errors++; }
@@ -279,38 +302,52 @@ namespace DiskGuide
                     IndexHigh=info.IndexHigh,IndexLow=info.IndexLow};
             }
         }
-        private static bool DeleteScanned(Rule rule, Entry file)
+        private static FileOutcome Result(Rule rule,Entry file,CleanCode code,string reason)
+        {return new FileOutcome{PathText=file.Path,Project=rule.Name,Bytes=file.Bytes,Code=code,Reason=reason};}
+        internal static CleanCode ErrorCode(int code)
+        {return code==32 || code==33?CleanCode.Busy:code==5?CleanCode.Permission:code==2 || code==3?CleanCode.Missing:CleanCode.Failed;}
+        private static FileOutcome NativeError(Rule rule,Entry file,int code)
+        {return Result(rule,file,ErrorCode(code),"Windows 返回 "+code+"："+new Win32Exception(code).Message);}
+        private static FileOutcome DeleteScanned(Rule rule, Entry file)
         {
             string path = Path.GetFullPath(file.Path);
-            if (!rule.Accepts(path, DateTime.FromFileTimeUtc(file.Modified), DateTime.UtcNow) ||
-                CheckDirectory(Path.GetDirectoryName(path)) != Boundary.Clear) return false;
+            if (!rule.Accepts(path, DateTime.FromFileTimeUtc(file.Modified), DateTime.UtcNow))return Result(rule,file,CleanCode.RuleChanged,"已不符合本次清理规则。");
+            var boundary=CheckDirectory(Path.GetDirectoryName(path));
+            if(boundary!=Boundary.Clear)return Result(rule,file,boundary==Boundary.Missing?CleanCode.Missing:CleanCode.Unsafe,"父目录不存在、不可访问或已成为链接，未删除。");
             using (SafeFileHandle h = CreateFile(path, 0x10000 | 0x80, 0, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero))
             {
                 HandleInfo info;
-                if (h.IsInvalid || !GetFileInformationByHandle(h, out info)) return false;
-                if (!Regular(info) || Length(info)!=file.Bytes || FileTime(info)!=file.Modified ||
-                    info.Volume!=file.Volume || info.IndexHigh!=file.IndexHigh || info.IndexLow!=file.IndexLow) return false;
-                if (!FinalPathMatches(h, path)) return false;
+                if (h.IsInvalid || !GetFileInformationByHandle(h, out info)) return NativeError(rule,file,Marshal.GetLastWin32Error());
+                if(!Regular(info))return Result(rule,file,CleanCode.Unsafe,"只读、系统、目录、链接或多硬链接内容不允许清除。");
+                if (Length(info)!=file.Bytes || FileTime(info)!=file.Modified || info.Volume!=file.Volume || info.IndexHigh!=file.IndexHigh || info.IndexLow!=file.IndexLow)
+                    return Result(rule,file,CleanCode.Changed,"文件身份、大小或修改时间与扫描快照不一致，请重新扫描。");
+                if (!FinalPathMatches(h, path)) return Result(rule,file,CleanCode.Unsafe,"实际文件路径与扫描位置不一致。");
                 byte disposition = 1;
-                return SetFileInformationByHandle(h, 4, ref disposition, 1);
+                return SetFileInformationByHandle(h, 4, ref disposition, 1)?Result(rule,file,CleanCode.Deleted,"文件身份复核通过，已提交删除。"):NativeError(rule,file,Marshal.GetLastWin32Error());
             }
         }
-        public static Dictionary<string, Outcome> Clean(IEnumerable<ScanRow> rows, CancellationToken token)
+        public static Dictionary<string, Outcome> Clean(IEnumerable<ScanRow> rows, CancellationToken token, KeepSnapshot keep = null)
         {
             var result = new Dictionary<string, Outcome>(StringComparer.OrdinalIgnoreCase);
             foreach (ScanRow row in rows)
             {
-                token.ThrowIfCancellationRequested();
                 if (!row.Pick || !row.CanPick || row.SelectedCount == 0) continue;
                 var done = new Outcome(); result[row.Rule.Path] = done;
-                if (!row.Rule.HasValidOrigin() || CheckDirectory(row.Rule.Path) != Boundary.Clear ||
-                    (row.Rule.Processes.Length != 0 && row.Rule.Processes.Any(Running().Contains)))
-                { done.Skipped = row.SelectedCount; continue; }
-                foreach (Entry file in row.Files.Where(f => f.Included))
+                bool safe=row.Rule.HasValidOrigin() && CheckDirectory(row.Rule.Path)==Boundary.Clear;
+                bool running=row.Rule.Processes.Length!=0 && row.Rule.Processes.Any(Running().Contains);
+                foreach (Entry file in row.Files)
                 {
-                    token.ThrowIfCancellationRequested();
-                    try { if (DeleteScanned(row.Rule, file)) { done.Removed++; done.Bytes += file.Bytes; } else done.Skipped++; }
-                    catch (Exception ex) { if (!FileProblem(ex)) throw; done.Skipped++; }
+                    try
+                    {
+                        if(!file.Included)done.Add(Result(row.Rule,file,CleanCode.Excluded,"在本次预览中取消了勾选。"));
+                        else if(keep!=null && keep.Error!=null)done.Add(Result(row.Rule,file,CleanCode.ConfigError,keep.Error));
+                        else if(file.Preserved || keep!=null && keep.Contains(file.Path))done.Add(Result(row.Rule,file,CleanCode.Kept,"匹配文件或上级目录的永久保留规则。"));
+                        else if(token.IsCancellationRequested)done.Add(Result(row.Rule,file,CleanCode.Cancelled,"操作已取消，未尝试删除该文件。"));
+                        else if(!safe)done.Add(Result(row.Rule,file,CleanCode.Unsafe,"清理目录或原始映射已变化，未删除。"));
+                        else if(running)done.Add(Result(row.Rule,file,CleanCode.Busy,"检测到对应应用正在运行，请正常退出后再扫描。"));
+                        else done.Add(DeleteScanned(row.Rule,file));
+                    }
+                    catch (Exception ex) { if (!FileProblem(ex)) throw;done.Add(Result(row.Rule,file,ex is UnauthorizedAccessException?CleanCode.Permission:CleanCode.Failed,ex.GetBaseException().Message)); }
                 }
             }
             return result;

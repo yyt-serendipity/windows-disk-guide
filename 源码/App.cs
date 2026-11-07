@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyVersion("1.5.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -49,10 +49,15 @@ namespace DiskGuide
         private List<ScanRow> rows = new List<ScanRow>();
         private string scope = "C:", cleanScopePath;
         private bool busy;
+        private readonly PreserveStore preserveStore;
+        private KeepSnapshot keep;
+        private List<FileOutcome> lastCleanup=new List<FileOutcome>();
+        private DateTime lastCleanupTime;
 
-        public Shell(Func<List<Rule>> ruleSource)
+        public Shell(Func<List<Rule>> ruleSource, PreserveStore preservation = null)
         {
             source = ruleSource;
+            preserveStore=preservation??PreserveStore.ForUser();keep=preserveStore.Load();
             using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Window.xaml"))
             using (var reader = XmlReader.Create(stream, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit }))
                 View = (Window)XamlReader.Load(reader);
@@ -71,6 +76,9 @@ namespace DiskGuide
             WireBrowser();
             WireManagement();
             WireSpace();
+            Get<Button>("KeepRulesBtn").Click+=delegate{ShowKeepRules();};
+            Get<Button>("ResultsBtn").Click+=delegate{ShowCleanupResults();};
+            Get<Button>("KeepFolderBtn").Click+=delegate{if(inspected!=null && !busy)SaveKeep(inspected.PathText,true);};
             Get<Button>("PreviewFilesBtn").Click += delegate { PreviewFiles(); };
             Get<Button>("GuideBtn").Click += delegate { OpenGuide(); };
             View.Loaded += async delegate { await Refresh(false); };
@@ -217,7 +225,9 @@ namespace DiskGuide
             Label("ChosenCount", selected.Count + " 项，共 " + selected.Sum(r => (long)r.SelectedCount).ToString("N0") + " 个文件");
             clean.ToolTip = selected.Count == 0 ? "先在当前类别中勾选可处理的文件。" :
                 "只处理当前磁盘、目录和类别中已勾选的 " + selected.Count + " 项。";
-            clean.IsEnabled = !busy && selected.Count > 0;
+            clean.IsEnabled = !busy && keep.Error==null && selected.Count > 0;
+            Label("KeepNotice",keep.Error??("永久保留规则："+keep.Rules.Count+" 条 · 已保护 "+rows.SelectMany(r=>r.Files).Count(f=>f.Preserved)+" 个匹配文件"));
+            Get<TextBlock>("KeepNotice").ToolTip=keep.Error??preserveStore.FilePath;
         }
         private void ShowCleanDetail()
         {
@@ -231,8 +241,9 @@ namespace DiskGuide
         private async Task Refresh(bool delete)
         {
             if (busy) return;
+            keep=preserveStore.Load();ApplyKeepFlags();
             var chosen = rows.Where(r => InScope(r) && r.CanPick && r.Pick && r.SelectedCount > 0).ToList();
-            if (delete && chosen.Count == 0) return;
+            if (delete && (chosen.Count == 0 || keep.Error!=null)) { if(keep.Error!=null)Status(keep.Error);return; }
             var previous = rows.Where(r => r.CanPick).ToDictionary(r => r.Rule.Path, r => r.Pick, StringComparer.OrdinalIgnoreCase);
             var excluded = new HashSet<string>(rows.SelectMany(r => r.Files).Where(f => !f.Included).Select(f => f.Identity), StringComparer.OrdinalIgnoreCase);
             busy = true;
@@ -242,6 +253,7 @@ namespace DiskGuide
             Get<Button>("ClearScopeBtn").IsEnabled = false;
             refresh.IsEnabled = false;
             clean.IsEnabled = false;
+            Get<Button>("KeepRulesBtn").IsEnabled=false;Get<Button>("KeepFolderBtn").IsEnabled=false;
             Get<Button>("PreviewFilesBtn").IsEnabled = false;
             ShowDrives();
             Status(delete ? "正在清理勾选的文件…" : "正在扫描已识别的缓存目录…");
@@ -250,16 +262,25 @@ namespace DiskGuide
             {
                 if (delete)
                 {
-                    var result = await Task.Run(() => Engine.Clean(chosen, lifetime.Token));
+                    lastCleanup.Clear();Get<Button>("ResultsBtn").IsEnabled=false;
+                    var result = await ScanWork.Run(() => {
+                        KeepLease lease;
+                        try{lease=preserveStore.Acquire();}
+                        catch(Exception ex){return Engine.Clean(chosen,lifetime.Token,new KeepSnapshot{Error="保留规则无法锁定或读取，未删除："+ex.GetBaseException().Message});}
+                        using(lease)return Engine.Clean(chosen,lifetime.Token,lease.Snapshot);
+                    },lifetime.Token);
+                    lastCleanup=result.Values.SelectMany(v=>v.Details).ToList();lastCleanupTime=DateTime.Now;
+                    Get<Button>("ResultsBtn").IsEnabled=lastCleanup.Count>0;
                     foreach (var item in result) outcomes[item.Key] = "  上次" + item.Value.Text;
-                    var total = new Outcome { Removed = result.Values.Sum(v => v.Removed), Bytes = result.Values.Sum(v => v.Bytes), Skipped = result.Values.Sum(v => v.Skipped) };
+                    var total = new Outcome { Removed = result.Values.Sum(v => v.Removed), Bytes = result.Values.Sum(v => v.Bytes), Skipped = result.Values.Sum(v => v.Skipped), Preserved=result.Values.Sum(v=>v.Preserved) };
                     final = "本次" + total.Text;
                     Status(final + " 正在更新清单…");
                 }
-                var snapshot = await Task.Run(() => {
+                keep=preserveStore.Load();var keepNow=keep;
+                var snapshot = await ScanWork.Run(() => {
                     var ruleList = source();
-                    return Tuple.Create(ruleList, Engine.Scan(ruleList, lifetime.Token));
-                });
+                    return Tuple.Create(ruleList, Engine.Scan(ruleList, lifetime.Token,keepNow));
+                },lifetime.Token);
                 lifetime.Token.ThrowIfCancellationRequested();
                 rules = snapshot.Item1;
                 rows = snapshot.Item2;
@@ -289,6 +310,7 @@ namespace DiskGuide
                     cleanFilter.IsEnabled = true;
                     Get<Button>("ClearScopeBtn").IsEnabled = true;
                     refresh.IsEnabled = true;
+                    Get<Button>("KeepRulesBtn").IsEnabled=true;
                     ShowDrives();
                     BindClean();
                     RefreshBrowser();

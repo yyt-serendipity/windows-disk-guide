@@ -42,7 +42,8 @@ try {
         (Join-Path $PSScriptRoot 'App.cs'),(Join-Path $PSScriptRoot 'Catalog.cs'),(Join-Path $PSScriptRoot 'Cleaner.cs'),
         (Join-Path $PSScriptRoot 'Usage.cs'),(Join-Path $PSScriptRoot 'Browser.cs'),
         (Join-Path $PSScriptRoot 'StartupInventory.cs'),(Join-Path $PSScriptRoot 'SoftwareInventory.cs'),(Join-Path $PSScriptRoot 'Management.cs'),
-        (Join-Path $PSScriptRoot 'AppSpace.cs'),(Join-Path $PSScriptRoot 'Space.cs'),(Join-Path $PSScriptRoot 'FilePreview.cs'))
+        (Join-Path $PSScriptRoot 'AppSpace.cs'),(Join-Path $PSScriptRoot 'Space.cs'),(Join-Path $PSScriptRoot 'FilePreview.cs'),
+        (Join-Path $PSScriptRoot 'Preserve.cs'),(Join-Path $PSScriptRoot 'ScanWork.cs'),(Join-Path $PSScriptRoot 'CleanupReview.cs'))
     & $compiler '/target:winexe' '/main:DiskGuide.Program' ('/out:' + $binary) @common
     if ($LASTEXITCODE -ne 0) {throw 'Build failed.'}
     if ($Check) {
