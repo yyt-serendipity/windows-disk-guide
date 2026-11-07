@@ -313,7 +313,7 @@ namespace DiskGuide
             Label("FolderPath", f == null ? "" : f.PathText);
             Get<TextBlock>("FolderPath").ToolTip = f == null ? null : f.PathText;
             Label("FolderWhy", f == null ? "从列表选择一个文件夹，查看用途和清理建议。" : f.Purpose);
-            Label("FolderPolicy", f == null ? "" : f.Policy);
+            Label("FolderPolicy", f == null ? "" : f.Advice);
             var tag = Get<Border>("FolderPolicyBox");
             tag.Visibility = f == null ? Visibility.Collapsed : Visibility.Visible;
             if (f != null)

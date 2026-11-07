@@ -25,6 +25,7 @@ namespace DiskGuide
         public string SizeText { get; set; }
         public string ProtectionReason { get; set; }
         public bool CanUninstall { get { return String.IsNullOrEmpty(ProtectionReason) && !String.IsNullOrEmpty(UninstallCommand); } }
+        public string Advice { get { return CanUninstall ? "不用时可卸载" : "建议保留"; } }
         public string Status { get { return CanUninstall ? "可调用官方卸载" : "保留 / 系统管理"; } }
         internal RegistryHive Hive;
         internal RegistryView View;

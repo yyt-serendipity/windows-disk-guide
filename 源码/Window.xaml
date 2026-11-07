@@ -125,7 +125,7 @@
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="tabLine" Property="Background" Value="#E0EAFB"/></Trigger>
           <DataTrigger Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail">
             <Setter Property="Foreground" Value="#C7D8F2"/><Setter TargetName="tabLine" Property="Background" Value="Transparent"/>
-            <Setter TargetName="tabLine" Property="Margin" Value="0,0,0,8"/><Setter TargetName="tabLine" Property="Padding" Value="8,15"/>
+            <Setter TargetName="tabLine" Property="Margin" Value="0,0,0,8"/><Setter TargetName="tabLine" Property="Padding" Value="8,12"/>
             <Setter TargetName="tabLine" Property="CornerRadius" Value="6"/><Setter TargetName="tabLine" Property="BorderThickness" Value="0"/>
             <Setter TargetName="navContent" Property="Orientation" Value="Vertical"/><Setter TargetName="navContent" Property="HorizontalAlignment" Value="Center"/>
             <Setter TargetName="navIcon" Property="Width" Value="23"/><Setter TargetName="navIcon" Property="Height" Value="23"/><Setter TargetName="navIcon" Property="Margin" Value="0,0,0,8"/>
@@ -222,7 +222,7 @@
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,19,0">
           <Image x:Name="HeaderIcon" Width="32" Height="32" Source="{StaticResource DiskIcon}" Margin="0,0,11,0"/>
           <StackPanel VerticalAlignment="Center"><TextBlock Text="磁盘清理助手" Foreground="#203652" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="空间有去处，清理有依据" Foreground="#60758E" FontSize="11" Margin="0,2,0,0"/></StackPanel>
+            <TextBlock Text="找到占用，清理空间" Foreground="#60758E" FontSize="11" Margin="0,2,0,0"/></StackPanel>
         </StackPanel>
         <StackPanel x:Name="DriveSwitcher" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
           <RadioButton x:Name="DriveC" GroupName="Scope" IsChecked="True" Style="{StaticResource DriveOption}" AutomationProperties.Name="只看 C 盘">
@@ -244,15 +244,58 @@
       </Grid>
     </Border>
     <TabControl x:Name="Tabs" Grid.Row="1" Grid.ColumnSpan="2" Margin="20,16,20,12" Background="Transparent" BorderThickness="0" SelectedIndex="0" Template="{StaticResource TopTabs}">
-      <TabItem x:Name="FoldersTab" Header="磁盘目录" Tag="M2,5 H8 L10,7 H20 V17 H2 Z M2,9 H20" AutomationProperties.Name="磁盘目录">
+      <TabItem x:Name="OverviewTab" Header="清理首页" Tag="M2,10 L11,2 L20,10 M5,8 V20 H17 V8 M9,20 V13 H13 V20" AutomationProperties.Name="清理首页">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0" TextElement.Foreground="#20324A">
+          <StackPanel>
+            <TextBlock x:Name="HomeTitle" Text="C 盘空间，先看这里" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="不知道从哪里开始？先检查缓存，再看看大文件和不用的软件。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,5,0,18"/>
+            <Border Style="{StaticResource Frame}" Padding="20,16" Margin="0,0,0,14">
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,24,0"><TextBlock x:Name="HomeFree" FontSize="29" FontWeight="SemiBold" Foreground="#244C81"/>
+                  <TextBlock x:Name="HomeCapacity" Style="{StaticResource Muted}" Margin="0,3,0,9"/>
+                  <ProgressBar x:Name="HomeDiskBar" Style="{StaticResource Meter}" Foreground="#3974D5" AutomationProperties.Name="当前磁盘已用空间比例"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock x:Name="HomeDiskAdvice" TextWrapping="Wrap" LineHeight="21"/>
+                  <TextBlock Text="这里清理的是存文件的空间，不是运行软件的内存。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Background="#EBF2FC" BorderBrush="#C8DAF3" BorderThickness="1" CornerRadius="8" Padding="20,17" Margin="0,0,0,14">
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,20,0"><TextBlock Text="先清理：软件留下的缓存" FontSize="16" FontWeight="SemiBold" Foreground="#244C81"/>
+                  <TextBlock x:Name="HomeCleanSize" FontSize="25" FontWeight="SemiBold" Foreground="#244C81" Margin="0,6,0,4"/>
+                  <TextBlock x:Name="HomeCleanHint" TextWrapping="Wrap" Foreground="#385779" LineHeight="20"/>
+                </StackPanel>
+                <Button x:Name="HomeCleanBtn" Grid.Column="1" Content="正在检查" Style="{StaticResource Action}" VerticalAlignment="Center" Padding="18,10"/>
+              </Grid>
+            </Border>
+            <TextBlock Text="还想腾出更多空间？" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,10"/>
+            <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,8"><DockPanel>
+              <Button x:Name="HomeLargeBtn" Content="看看谁占空间" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
+              <StackPanel><TextBlock Text="找出占空间的大文件" FontWeight="SemiBold"/><TextBlock Text="视频、安装包或旧文件可能很大，是否需要保留由你决定。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+            </DockPanel></Border>
+            <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,15"><DockPanel>
+              <Button x:Name="HomeSoftwareBtn" Content="查看已装软件" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
+              <StackPanel><TextBlock Text="卸载已经不用的软件" FontWeight="SemiBold"/><TextBlock Text="用软件自己的卸载程序处理，不要直接删除安装文件夹。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+            </DockPanel></Border>
+            <DockPanel Margin="0,0,0,8"><Button x:Name="HomeFoldersBtn" Content="查看文件夹用途" DockPanel.Dock="Right" Style="{StaticResource LinkButton}"/>
+              <TextBlock Text="哪些能删，哪些先别动？" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+            <TextBlock TextWrapping="Wrap" LineHeight="23"><Run FontWeight="SemiBold" Foreground="#006C61" Text="可清理的缓存　"/><Run Text="清单中已识别的缓存，先看影响，再清理。"/><LineBreak/>
+              <Run FontWeight="SemiBold" Foreground="#92520D" Text="需要你确认　　"/><Run Text="照片、文档、下载文件、备份，不需要且已备份后再处理。"/><LineBreak/>
+              <Run FontWeight="SemiBold" Foreground="#485B76" Text="不要直接删除　"/><Run Text="Windows、Program Files、Recovery 等系统或软件文件夹。"/>
+            </TextBlock>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="FoldersTab" Header="文件夹" Tag="M2,5 H8 L10,7 H20 V17 H2 Z M2,9 H20" AutomationProperties.Name="文件夹">
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-          <DockPanel x:Name="FolderHeading" Margin="0,0,0,16"><TextBlock Text="磁盘目录" Style="{StaticResource SectionTitle}"/><TextBlock Text="逐层查看文件夹用途与空间占用" Style="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="16,0,0,3"/></DockPanel>
+          <DockPanel x:Name="FolderHeading" Margin="0,0,0,16"><TextBlock Text="这些文件夹能删吗？" Style="{StaticResource SectionTitle}"/><TextBlock Text="选中文件夹，看看它用来做什么" Style="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="16,0,0,3"/></DockPanel>
           <Grid Grid.Row="1" Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <DockPanel Margin="0,0,8,0">
               <Button x:Name="UpBtn" Style="{StaticResource SmallButton}" DockPanel.Dock="Left" ToolTip="上一级（退格键）" AutomationProperties.Name="上一级" IsEnabled="False" Margin="0,0,5,0">
                 <Path Width="12" Height="12" Data="{StaticResource BackArrow}" Stroke="#334F6D" StrokeThickness="1.8" Stretch="Uniform"/>
               </Button>
-              <Button x:Name="HomeBtn" Style="{StaticResource LinkButton}" DockPanel.Dock="Left" Content="根目录" ToolTip="回到当前磁盘范围的根目录" IsEnabled="False" Margin="0,0,4,0"/>
+              <Button x:Name="HomeBtn" Style="{StaticResource LinkButton}" DockPanel.Dock="Left" Content="回到磁盘" ToolTip="回到当前磁盘范围的根目录" IsEnabled="False" Margin="0,0,4,0"/>
               <Border Background="White" BorderBrush="#D8E1EB" BorderThickness="1" CornerRadius="6" Padding="10,5"><TextBlock x:Name="LocationText" Text="C:\" FontFamily="Consolas, Microsoft YaHei UI" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" Foreground="#354D68"/></Border>
             </DockPanel>
             <Border Grid.Column="1" BorderThickness="1" BorderBrush="#C4D1DE" Background="White" CornerRadius="5" Padding="8,0" Margin="0,0,7,0">
@@ -265,7 +308,7 @@
               </Grid>
             </Border>
             <ComboBox x:Name="PolicyBox" Grid.Column="2" Width="114" Padding="7,4" VerticalContentAlignment="Center" SelectedIndex="0" AutomationProperties.Name="按处理方式筛选">
-              <ComboBoxItem Content="全部类型"/><ComboBoxItem Content="有清理项"/><ComboBoxItem Content="建议保留"/><ComboBoxItem Content="需人工判断"/>
+              <ComboBoxItem Content="全部类型"/><ComboBoxItem Content="有清理项"/><ComboBoxItem Content="建议保留"/><ComboBoxItem Content="先确认用途"/>
             </ComboBox>
           </Grid>
           <Grid x:Name="FolderLayout" Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="298"/></Grid.ColumnDefinitions>
@@ -285,11 +328,11 @@
                         </StackPanel>
                       </Grid>
                     </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="处理建议" Width="88" MinWidth="82" SortMemberPath="Policy"><DataGridTemplateColumn.CellTemplate><DataTemplate>
-                      <Border Background="{Binding Tint}" CornerRadius="4" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="6,2" Margin="6,0"><TextBlock Text="{Binding Policy}" Foreground="{Binding Ink}" FontSize="12"/></Border>
+                    <DataGridTemplateColumn Header="能删吗？" Width="88" MinWidth="82" SortMemberPath="Policy"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                      <Border Background="{Binding Tint}" CornerRadius="4" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="6,2" Margin="6,0"><TextBlock Text="{Binding Advice}" Foreground="{Binding Ink}" FontSize="12"/></Border>
                     </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                    <DataGridTextColumn Header="目录总大小" Width="96" MinWidth="86" Binding="{Binding SizeText}" SortMemberPath="SizeBytes" ElementStyle="{StaticResource NumberCell}"/>
-                    <DataGridTextColumn Header="可直接清理" Width="99" Binding="{Binding ReadyText}" SortMemberPath="ReadyBytes" ElementStyle="{StaticResource NumberCell}"/>
+                    <DataGridTextColumn Header="占用空间" Width="96" MinWidth="86" Binding="{Binding SizeText}" SortMemberPath="SizeBytes" ElementStyle="{StaticResource NumberCell}"/>
+                    <DataGridTextColumn Header="可清缓存" Width="99" Binding="{Binding ReadyText}" SortMemberPath="ReadyBytes" ElementStyle="{StaticResource NumberCell}"/>
                   </DataGrid.Columns>
                 </DataGrid>
                 <StackPanel x:Name="FolderEmpty" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="10,25,10,0" Visibility="Collapsed">
@@ -315,10 +358,10 @@
                   <StackPanel x:Name="DetailFacts" Grid.Row="2" Background="#F1F5F9" Margin="0,2,0,5">
                     <Grid Margin="8,6"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                      <TextBlock Text="目录总大小" Style="{StaticResource Muted}" VerticalAlignment="Center" ToolTip="按可读文件长度相加，跳过目录链接。硬链接按文件路径计数。"/>
+                      <TextBlock Text="占用空间" Style="{StaticResource Muted}" VerticalAlignment="Center" ToolTip="按可读文件长度相加，跳过目录链接。硬链接按文件路径计数。"/>
                       <TextBlock x:Name="FolderSizeValue" Grid.Column="1" FontSize="16" FontWeight="SemiBold" Margin="8,0,2,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self},Path=Text}"/>
                       <Button x:Name="SizeBtn" Grid.Column="2" Style="{StaticResource LinkButton}" Content="统计" AutomationProperties.Name="统计或取消目录大小"/>
-                      <TextBlock Grid.Row="1" Text="可直接清理" Style="{StaticResource Muted}" VerticalAlignment="Center" ToolTip="当前符合默认清理条件的文件大小。实际删除时会再次检查占用和文件变化。"/>
+                      <TextBlock Grid.Row="1" Text="可清缓存" Style="{StaticResource Muted}" VerticalAlignment="Center" ToolTip="当前符合默认清理条件的文件大小。实际删除时会再次检查占用和文件变化。"/>
                       <TextBlock x:Name="FolderReadyValue" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="8,0,0,0" Foreground="#006C61" FontSize="16" FontWeight="SemiBold"/>
                       <TextBlock x:Name="MeasureNote" Grid.Row="2" Grid.ColumnSpan="3" Margin="0,4,0,0" FontSize="11" Foreground="#536981" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self},Path=Text}"/>
                       <TextBlock x:Name="OtherMatches" Grid.Row="3" Grid.ColumnSpan="3" FontSize="11" Foreground="#805019" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="Collapsed"/>
@@ -343,8 +386,8 @@
                   <WrapPanel x:Name="DetailActions" Grid.Row="4" Margin="0,6,0,0">
                     <Button x:Name="RelatedBtn" Style="{StaticResource Action}" Content="查看清理项" Padding="10,6" Margin="0,0,6,6" IsEnabled="False"/>
                     <Button x:Name="OpenBtn" Content="打开目录" Padding="10,6" Margin="0,0,6,6" ToolTip="在资源管理器中打开" IsEnabled="False"/>
-                    <Button x:Name="FolderRankBtn" Content="查看空间排行" Padding="10,6" Margin="0,0,6,6" ToolTip="统计此目录的子文件夹和最大文件" IsEnabled="False"/>
-                    <Button x:Name="KeepFolderBtn" Content="始终保留此目录" Padding="10,6" Margin="0,0,6,6" ToolTip="把此目录及其全部内容加入永久保留规则" IsEnabled="False"/>
+                    <Button x:Name="FolderRankBtn" Content="查看占用排行" Padding="10,6" Margin="0,0,6,6" ToolTip="统计此目录的子文件夹和最大文件" IsEnabled="False"/>
+                    <Button x:Name="KeepFolderBtn" Content="这个文件夹不清理" Padding="10,6" Margin="0,0,6,6" ToolTip="把此目录及其全部内容加入永久保留规则" IsEnabled="False"/>
                   </WrapPanel>
                 </Grid>
               </ScrollViewer>
@@ -352,7 +395,7 @@
           </Grid>
         </Grid>
       </TabItem>
-      <TabItem x:Name="RankingTab" Header="空间排行" Tag="M3,18 V11 H6 V18 Z M9,18 V6 H12 V18 Z M15,18 V2 H18 V18 Z" AutomationProperties.Name="空间排行">
+      <TabItem x:Name="RankingTab" Header="占用排行" Tag="M3,18 V11 H6 V18 Z M9,18 V6 H12 V18 Z M15,18 V2 H18 V18 Z" AutomationProperties.Name="占用排行">
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Border x:Name="RankOverview" Style="{StaticResource Frame}" Padding="15,12" Margin="0,0,0,10"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <StackPanel Margin="0,0,12,0"><TextBlock x:Name="RankPath" Text="C:\" FontFamily="Consolas, Microsoft YaHei UI" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self},Path=Text}"/>
@@ -360,10 +403,10 @@
               <TextBlock x:Name="RankNotice" TextWrapping="Wrap" Style="{StaticResource Muted}"/>
             </StackPanel>
             <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button x:Name="RankScanBtn" Content="开始统计" Style="{StaticResource Action}" Padding="19,8"/>
-              <Button x:Name="RankRootBtn" Content="回到磁盘根目录" Style="{StaticResource LinkButton}" Margin="0,7,0,0"/></StackPanel>
+              <Button x:Name="RankRootBtn" Content="查看整个磁盘" Style="{StaticResource LinkButton}" Margin="0,7,0,0"/></StackPanel>
           </Grid></Border>
           <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="172"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <ComboBox x:Name="RankKind" SelectedIndex="0" Padding="8,5" VerticalContentAlignment="Center" AutomationProperties.Name="排行类别"><ComboBoxItem Content="当前层文件夹"/><ComboBoxItem Content="最大文件 Top 100"/></ComboBox>
+            <ComboBox x:Name="RankKind" SelectedIndex="0" Padding="8,5" VerticalContentAlignment="Center" AutomationProperties.Name="排行类别"><ComboBoxItem Content="当前层文件夹"/><ComboBoxItem Content="最大的 100 个文件"/></ComboBox>
             <Grid Grid.Column="1" Margin="10,0"><TextBox x:Name="RankSearch" Style="{StaticResource SearchField}" AutomationProperties.Name="搜索排行结果"/>
               <TextBlock Text="搜索已统计结果" IsHitTestVisible="False" Margin="11,0" VerticalAlignment="Center" Foreground="#607187"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ElementName=RankSearch,Path=Text}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
             </Grid><TextBlock x:Name="RankCount" Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
@@ -371,7 +414,7 @@
           <Border Grid.Row="2" Style="{StaticResource Frame}" Padding="1"><Grid>
             <DataGrid x:Name="RankGrid" AutomationProperties.Name="空间占用排行" RowHeight="44"><DataGrid.Columns>
               <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="2*" MinWidth="150" ElementStyle="{StaticResource CellText}"/>
-              <DataGridTextColumn Header="已读大小" Binding="{Binding SizeText}" SortMemberPath="SizeBytes" Width="120" ElementStyle="{StaticResource NumberCell}"/>
+              <DataGridTextColumn Header="占用空间" Binding="{Binding SizeText}" SortMemberPath="SizeBytes" Width="120" ElementStyle="{StaticResource NumberCell}"/>
               <DataGridTextColumn Header="完整路径" Binding="{Binding PathText}" Width="3*" ElementStyle="{StaticResource CellText}"/>
             </DataGrid.Columns></DataGrid>
             <TextBlock x:Name="RankEmpty" Text="选择范围后开始统计，找出空间用在哪里。" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False"/>
@@ -379,26 +422,26 @@
           <Border x:Name="RankFooter" Grid.Row="3" Style="{StaticResource Frame}" Padding="14,10" Margin="0,10,0,0"><DockPanel>
             <Button x:Name="RankOpenBtn" DockPanel.Dock="Right" Content="打开所在位置" Margin="8,0,0,0" IsEnabled="False"/>
             <Button x:Name="RankDiveBtn" DockPanel.Dock="Right" Content="进入目录继续统计" IsEnabled="False"/>
-            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0"><TextBlock x:Name="RankSelection" TextTrimming="CharacterEllipsis"/><TextBlock Text="仅供分析；大文件不代表可以删除。" Style="{StaticResource Muted}" Margin="0,4,0,0"/></StackPanel>
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0"><TextBlock x:Name="RankSelection" TextTrimming="CharacterEllipsis"/><TextBlock Text="大文件不一定是垃圾。不确定用途时，先保留。" Style="{StaticResource Muted}" Margin="0,4,0,0"/></StackPanel>
           </DockPanel></Border>
         </Grid>
       </TabItem>
-      <TabItem x:Name="CleanupTab" Header="缓存清理" Tag="M7,7 H17 L16,19 H8 Z M5,4 H19 M9,4 V1 H15 V4 M10,10 V16 M14,10 V16" AutomationProperties.Name="缓存清理">
+      <TabItem x:Name="CleanupTab" Header="清理缓存" Tag="M7,7 H17 L16,19 H8 Z M5,4 H19 M9,4 V1 H15 V4 M10,10 V16 M14,10 V16" AutomationProperties.Name="清理缓存">
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <DockPanel x:Name="CleanupHeading" Margin="0,0,0,16"><TextBlock Text="缓存清理" Style="{StaticResource SectionTitle}"/><TextBlock Text="先预览文件，再清理已选项目" Style="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="16,0,0,3"/></DockPanel>
+          <DockPanel x:Name="CleanupHeading" Margin="0,0,0,16"><TextBlock Text="清理软件留下的缓存" Style="{StaticResource SectionTitle}"/><TextBlock Text="先看内容和影响，再决定清理" Style="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="16,0,0,3"/></DockPanel>
           <Border x:Name="ScopeStrip" Grid.Row="1" Style="{StaticResource Frame}" Padding="16,12" Margin="0,0,0,12">
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel Margin="0,0,12,0">
                 <DockPanel LastChildFill="True"><TextBlock Text="清理范围" DockPanel.Dock="Left" Margin="0,0,8,0" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
-                  <Button x:Name="ClearScopeBtn" Content="解除限定" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Visibility="Collapsed"/>
+                  <Button x:Name="ClearScopeBtn" Content="查看整个磁盘" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Visibility="Collapsed"/>
                   <TextBlock x:Name="CleanScopeText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/></DockPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,3,0,0"><TextBlock Text="本次已选" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,3,0,0"><TextBlock Text="预计可清理" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
                   <TextBlock x:Name="ChosenSize" Margin="9,0,12,0" Text="0 B" FontSize="23" FontWeight="SemiBold" Foreground="#214474" VerticalAlignment="Center"/>
                   <TextBlock x:Name="ChosenCount" Style="{StaticResource Muted}" VerticalAlignment="Center" Text="正在扫描…"/></StackPanel>
                 <TextBlock x:Name="KeepNotice" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
               </StackPanel>
               <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button x:Name="CleanBtn" Style="{StaticResource Action}" Content="一键清理" Padding="21,8" IsEnabled="False"/>
-                <Button x:Name="PreviewFilesBtn" Content="预览所选项目文件" Style="{StaticResource LinkButton}" Margin="0,5,0,0" IsEnabled="False"/></StackPanel>
+                <Button x:Name="PreviewFilesBtn" Content="查看具体文件" Style="{StaticResource LinkButton}" Margin="0,5,0,0" IsEnabled="False"/></StackPanel>
             </Grid>
           </Border>
           <ListBox x:Name="CleanFilter" Grid.Row="2" SelectedIndex="0" SelectionMode="Single" AutomationProperties.Name="按清理条件筛选"
@@ -417,9 +460,9 @@
                 </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
             </Style></ListBox.ItemContainerStyle>
               <ListBoxItem AutomationProperties.Name="全部项目"><StackPanel Orientation="Horizontal"><TextBlock Text="全部项目"/><TextBlock x:Name="FilterCount0" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
-              <ListBoxItem AutomationProperties.Name="默认可清"><StackPanel Orientation="Horizontal"><TextBlock Text="默认可清"/><TextBlock x:Name="FilterCount1" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
-              <ListBoxItem AutomationProperties.Name="手动可选"><StackPanel Orientation="Horizontal"><TextBlock Text="手动可选"/><TextBlock x:Name="FilterCount2" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
-              <ListBoxItem AutomationProperties.Name="需退出应用"><StackPanel Orientation="Horizontal"><TextBlock Text="需退出应用"/><TextBlock x:Name="FilterCount3" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
+              <ListBoxItem AutomationProperties.Name="建议清理"><StackPanel Orientation="Horizontal"><TextBlock Text="建议清理"/><TextBlock x:Name="FilterCount1" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
+              <ListBoxItem AutomationProperties.Name="先看影响"><StackPanel Orientation="Horizontal"><TextBlock Text="先看影响"/><TextBlock x:Name="FilterCount2" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
+              <ListBoxItem AutomationProperties.Name="先退出软件"><StackPanel Orientation="Horizontal"><TextBlock Text="先退出软件"/><TextBlock x:Name="FilterCount3" Margin="7,0,0,0" FontWeight="SemiBold" Text="0"/></StackPanel></ListBoxItem>
           </ListBox>
           <Border Grid.Row="3" Style="{StaticResource Frame}" Padding="1"><Grid>
             <DataGrid x:Name="CleanGrid" RowHeight="45" AutomationProperties.Name="清理项目">
@@ -429,19 +472,22 @@
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="清理项目" Width="*" MinWidth="120" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate>
                   <StackPanel VerticalAlignment="Center" Margin="8,0"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding PathText}" Foreground="#526981" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip="{Binding PathText}"/></StackPanel>
+                    <TextBlock Text="{Binding Explanation}" Foreground="#526981" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip="{Binding Explanation}"/></StackPanel>
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="磁盘" Width="61" MinWidth="52" Binding="{Binding Drive}" ElementStyle="{StaticResource CellText}"/>
-                <DataGridTemplateColumn Header="清理条件" Width="110" MinWidth="94" SortMemberPath="Status"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                <DataGridTemplateColumn Header="能清理吗？" Width="110" MinWidth="94" SortMemberPath="Status"><DataGridTemplateColumn.CellTemplate><DataTemplate>
                   <TextBlock Text="{Binding Status}" Foreground="{Binding Ink}" Style="{StaticResource CellText}"/>
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                <DataGridTextColumn Header="匹配大小" Width="105" MinWidth="94" Binding="{Binding SizeText}" SortMemberPath="Bytes" ElementStyle="{StaticResource NumberCell}"/>
+                <DataGridTextColumn Header="找到的大小" Width="105" MinWidth="94" Binding="{Binding SizeText}" SortMemberPath="Bytes" ElementStyle="{StaticResource NumberCell}"/>
               </DataGrid.Columns>
             </DataGrid><TextBlock x:Name="CleanEmpty" Text="当前范围没有匹配的清理项目" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False" Visibility="Collapsed"/>
           </Grid></Border>
           <StackPanel Grid.Row="4" Margin="2,9,0,0">
             <TextBlock x:Name="CleanWhy" TextWrapping="Wrap" MaxHeight="58"/>
-            <TextBlock x:Name="CleanPath" FontSize="11" Foreground="#50667D" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self},Path=Text}" Margin="0,2,0,0"/>
+            <Expander x:Name="CleanDetails" Header="查看文件位置和清理范围" Margin="0,4,0,0" FontSize="12"><StackPanel Margin="18,5,0,0">
+              <TextBlock x:Name="CleanPath" FontSize="11" Foreground="#50667D" TextTrimming="CharacterEllipsis" ToolTip="{Binding RelativeSource={RelativeSource Self},Path=Text}"/>
+              <TextBlock x:Name="CleanRule" TextWrapping="Wrap" MaxHeight="60" Margin="0,4,0,0"/>
+            </StackPanel></Expander>
             <TextBlock Text="一键清理会永久删除勾选的文件。被占用的文件自动跳过。" Style="{StaticResource Muted}" Margin="0,4,0,0"/>
           </StackPanel>
         </Grid>
@@ -449,12 +495,12 @@
       <TabItem x:Name="StartupTab" Header="开机启动" Tag="M7,4 A8,8 0 1 0 15,4 M11,1 V11" AutomationProperties.Name="开机启动">
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <StackPanel x:Name="StartupHeader" Margin="0,0,0,14"><TextBlock x:Name="StartupHeading" Text="是谁随电脑一起启动？" Style="{StaticResource SectionTitle}"/>
-            <TextBlock x:Name="StartupSubtitle" Text="查看登录启动项、计划任务和自动服务，分清启动设置与当前运行状态。" Style="{StaticResource Muted}" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
+            <TextBlock x:Name="StartupSubtitle" Text="不常用的软件可以关闭开机启动；不认识的系统服务先保留。" Style="{StaticResource Muted}" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
           <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <Grid Margin="0,0,10,0"><TextBox x:Name="StartupSearch" Style="{StaticResource SearchField}" AutomationProperties.Name="搜索启动项"/>
-              <TextBlock Text="搜索名称、命令或来源" Foreground="#607187" Margin="11,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ElementName=StartupSearch,Path=Text}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
-            <ComboBox x:Name="StartupKind" Grid.Column="1" SelectedIndex="0" Padding="8,5" VerticalContentAlignment="Center" AutomationProperties.Name="启动来源筛选">
-              <ComboBoxItem Content="全部启动来源"/><ComboBoxItem Content="登录启动项"/><ComboBoxItem Content="计划任务"/><ComboBoxItem Content="自动服务"/>
+              <TextBlock Text="搜索软件名称" Foreground="#607187" Margin="11,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ElementName=StartupSearch,Path=Text}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
+            <ComboBox x:Name="StartupKind" Grid.Column="1" SelectedIndex="1" Padding="8,5" VerticalContentAlignment="Center" AutomationProperties.Name="启动来源筛选">
+              <ComboBoxItem Content="所有启动方式"/><ComboBoxItem Content="常见开机软件"/><ComboBoxItem Content="其他启动任务"/><ComboBoxItem Content="系统后台服务"/>
             </ComboBox>
             <TextBlock x:Name="StartupCount" Grid.Column="2" Text="尚未读取" Margin="14,0,2,0" VerticalAlignment="Center" Style="{StaticResource Muted}"/>
           </Grid>
@@ -467,7 +513,7 @@
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="来源" Binding="{Binding Source}" Width="150" ElementStyle="{StaticResource CellText}"/>
                 <DataGridTextColumn Header="启动设置" Binding="{Binding State}" Width="170" ElementStyle="{StaticResource CellText}"/>
-                <DataGridTextColumn Header="启动命令" Binding="{Binding Command}" Width="2*" MinWidth="140" ElementStyle="{StaticResource CellText}"/>
+                <DataGridTextColumn Header="启动命令" Binding="{Binding Command}" Visibility="Collapsed" Width="2*" MinWidth="140" ElementStyle="{StaticResource CellText}"/>
               </DataGrid.Columns>
             </DataGrid>
             <TextBlock x:Name="StartupEmpty" Text="正在读取启动项…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False"/>
@@ -475,19 +521,21 @@
           <Border Grid.Row="3" Style="{StaticResource Frame}" Padding="15,12" Margin="0,10,0,0">
             <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
               <TextBlock x:Name="StartupTitle" Text="选择一条启动记录" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis"/>
-              <TextBox x:Name="StartupDetail" Grid.Row="1" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap" MaxHeight="76" VerticalScrollBarVisibility="Auto" Padding="0,5"/>
+              <Expander x:Name="StartupDetails" Grid.Row="1" Header="查看启动位置和命令" FontSize="12" Margin="0,6,0,5">
+                <TextBox x:Name="StartupDetail" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap" MaxHeight="76" VerticalScrollBarVisibility="Auto" Padding="0,5"/>
+              </Expander>
               <TextBlock x:Name="StartupNotice" Grid.Row="2" Foreground="#80602C" FontSize="12" TextWrapping="Wrap" MaxHeight="36" Margin="0,2,0,7"/>
-              <WrapPanel Grid.Row="3"><Button x:Name="StartupSettingsBtn" Content="管理登录启动项" Style="{StaticResource SmallButton}" Margin="0,0,8,0"/>
+              <WrapPanel Grid.Row="3"><Button x:Name="StartupSettingsBtn" Content="去关闭开机启动" Style="{StaticResource Action}" Margin="0,0,8,0" ToolTip="打开 Windows 设置，由你选择要关闭的开机软件"/>
                 <Button x:Name="TaskSettingsBtn" Content="打开任务计划程序" Style="{StaticResource SmallButton}" Margin="0,0,8,0"/>
                 <Button x:Name="ServicesBtn" Content="打开服务管理" Style="{StaticResource SmallButton}"/></WrapPanel>
             </Grid>
           </Border>
         </Grid>
       </TabItem>
-      <TabItem x:Name="SoftwareTab" Header="软件管理" Tag="M2,2 H9 V9 H2 Z M13,2 H20 V9 H13 Z M2,13 H9 V20 H2 Z M13,13 H20 V20 H13 Z" AutomationProperties.Name="软件管理">
+      <TabItem x:Name="SoftwareTab" Header="已装软件" Tag="M2,2 H9 V9 H2 Z M13,2 H20 V9 H13 Z M2,13 H9 V20 H2 Z M13,13 H20 V20 H13 Z" AutomationProperties.Name="已装软件">
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <StackPanel x:Name="SoftwareHeader" Margin="0,0,0,14"><TextBlock x:Name="SoftwareHeading" Text="软件装在哪，卸载有依据。" Style="{StaticResource SectionTitle}"/>
-            <TextBlock x:Name="SoftwareSubtitle" Text="桌面软件与当前账户的商店应用统一查看。选择软件，从官方卸载开始，再检查残留。" Style="{StaticResource Muted}" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
+          <StackPanel x:Name="SoftwareHeader" Margin="0,0,0,14"><TextBlock x:Name="SoftwareHeading" Text="哪些软件已经不用了？" Style="{StaticResource SectionTitle}"/>
+            <TextBlock x:Name="SoftwareSubtitle" Text="先看看是否还需要，再用软件自己的卸载程序删除。" Style="{StaticResource Muted}" Margin="0,5,0,0" TextWrapping="Wrap"/></StackPanel>
           <Grid Grid.Row="1" Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="140"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <Grid Margin="0,0,10,0"><TextBox x:Name="SoftwareSearch" Style="{StaticResource SearchField}" AutomationProperties.Name="搜索已安装软件"/>
               <TextBlock Text="搜索软件、发布者或安装位置" Foreground="#607187" Margin="11,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding ElementName=SoftwareSearch,Path=Text}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
@@ -510,9 +558,10 @@
                       <TextBlock Text="{Binding Version}" FontSize="11" Foreground="#526981" TextTrimming="CharacterEllipsis"/></StackPanel></DockPanel>
                 </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="发布者" Binding="{Binding Publisher}" Width="*" MinWidth="100" ElementStyle="{StaticResource CellText}"/>
-                <DataGridTextColumn Header="类型" Binding="{Binding Kind}" Width="95" ElementStyle="{StaticResource CellText}"/>
-                <DataGridTextColumn Header="登记大小" Binding="{Binding SizeText}" Width="100" ElementStyle="{StaticResource NumberCell}"/>
-                <DataGridTextColumn Header="安装位置" Binding="{Binding InstallPath}" Width="*" MinWidth="110" ElementStyle="{StaticResource CellText}"/>
+                <DataGridTextColumn Header="类型" Binding="{Binding Kind}" Width="95" Visibility="Collapsed" ElementStyle="{StaticResource CellText}"/>
+                <DataGridTextColumn Header="参考大小" Binding="{Binding SizeText}" Width="100" ElementStyle="{StaticResource NumberCell}"/>
+                <DataGridTextColumn Header="安装位置" Binding="{Binding InstallPath}" Width="*" MinWidth="110" Visibility="Collapsed" ElementStyle="{StaticResource CellText}"/>
+                <DataGridTextColumn Header="建议" Binding="{Binding Advice}" Width="140" ElementStyle="{StaticResource CellText}"/>
               </DataGrid.Columns>
             </DataGrid>
             <TextBlock x:Name="SoftwareEmpty" Text="正在读取软件清单…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#526981" IsHitTestVisible="False"/>
@@ -520,11 +569,14 @@
           <Border Grid.Row="4" Style="{StaticResource Frame}" Padding="15,12" Margin="0,10,0,0">
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel Margin="0,0,16,0"><TextBlock x:Name="SoftwareTitle" Text="选择要管理的软件" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis"/>
-                <TextBox x:Name="SoftwareDetail" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap" MaxHeight="74" VerticalScrollBarVisibility="Auto" Padding="0,5"/>
+                <TextBlock x:Name="SoftwareAdvice" TextWrapping="Wrap" Margin="0,5,0,3" MaxHeight="54"/>
+                <Expander x:Name="SoftwareDetails" Header="查看软件位置和详细说明" FontSize="12" Margin="0,3,0,5">
+                  <TextBox x:Name="SoftwareDetail" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap" MaxHeight="74" VerticalScrollBarVisibility="Auto" Padding="0,5"/>
+                </Expander>
                 <TextBlock x:Name="SoftwareNotice" Text="免安装软件或其他账户的应用可能未登记。登记大小不等于实际占用。" Foreground="#80602C" FontSize="12" TextWrapping="Wrap" MaxHeight="36"/>
               </StackPanel>
-              <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button x:Name="UninstallBtn" Content="卸载并检查残留" Style="{StaticResource Action}" IsEnabled="False" Padding="14,8"/>
-                <Button x:Name="SoftwareSpaceBtn" Content="查看 C / D 盘占用" Margin="0,7,0,0" IsEnabled="False"/>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center"><Button x:Name="UninstallBtn" Content="卸载这个软件" Style="{StaticResource Action}" IsEnabled="False" Padding="14,8"/>
+                <Button x:Name="SoftwareSpaceBtn" Content="查看占用" Margin="0,7,0,0" IsEnabled="False"/>
                 <Button x:Name="SoftwareSettingsBtn" Content="Windows 软件设置" Style="{StaticResource LinkButton}" Margin="0,7,0,0"/></StackPanel>
             </Grid>
           </Border>
@@ -533,7 +585,7 @@
     </TabControl>
     <Border Grid.Row="2" Grid.Column="1" Background="#FFFFFF" BorderBrush="#D8E1EB" BorderThickness="0,1,0,0" Padding="20,0">
       <DockPanel><Button x:Name="GuideBtn" Content="使用说明" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" ToolTip="阅读兼容性、清理规则与实现原理"/>
-        <Button x:Name="KeepRulesBtn" Content="保留规则" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0"/>
+        <Button x:Name="KeepRulesBtn" Content="不清理的文件" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0"/>
         <Button x:Name="ResultsBtn" Content="清理结果" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0" IsEnabled="False"/>
         <Button x:Name="ScanTasksBtn" Content="扫描任务" Style="{StaticResource LinkButton}" DockPanel.Dock="Left" Margin="0,0,14,0" Visibility="Collapsed" FontWeight="SemiBold" AutomationProperties.Name="查看后台扫描任务"/>
         <Grid><TextBlock x:Name="StatusText" Text="正在准备扫描…" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="#3B556C"/>

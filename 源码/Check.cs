@@ -331,6 +331,18 @@ namespace DiskGuide
                 C<RadioButton>(w,fixtureDrive).IsChecked=true;
             }
             Expect(button.IsEnabled,"One-click enabled for selected files");
+            Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"OverviewTab"),"Ordinary users land on the guided home page");
+            Expect(C<TextBlock>(w,"HomeCleanSize").Text=="12 B","Home suggestion excludes optional, running-app and unrelated files");
+            Expect(C<TextBlock>(w,"HomeDiskAdvice").Foreground.ToString()=="#FF20324A","Home text does not inherit selected navigation colors");
+            Expect(C<TextBlock>(w,"HomeCleanHint").Text.Contains("先退出软件"),"Home explains why some cache cannot be cleaned yet");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"home-fixture.png");
+            C<Button>(w,"HomeCleanBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"CleanupTab") && C<ListBox>(w,"CleanFilter").SelectedIndex==1 && File.Exists(eligible),"Home action opens recommended choices without deleting anything");
+            Expect(!C<Expander>(w,"CleanDetails").IsExpanded,"Technical cleanup details start folded while impact remains visible");
+            C<ListBox>(w,"CleanFilter").SelectedIndex=0;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"OverviewTab");
+            C<Button>(w,"HomeFoldersBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(()=>C<DataGrid>(w,"FolderGrid").Items.Count>0,"Home opens folder explanations");
             Expect(C<TabControl>(w,"Tabs").TabStripPlacement==(w.ActualWidth>=1100 && w.ActualHeight>=680?Dock.Left:Dock.Top),"Navigation matches allocated window dimensions: "+w.ActualWidth+" x "+w.ActualHeight);
             var selectedTab=C<TabItem>(w,"FoldersTab");var otherTab=C<TabItem>(w,"RankingTab");selectedTab.ApplyTemplate();otherTab.ApplyTemplate();
             Expect(((Border)selectedTab.Template.FindName("tabLine",selectedTab)).Background.ToString()!=(((Border)otherTab.Template.FindName("tabLine",otherTab)).Background??Brushes.Transparent).ToString(),"Navigation visibly identifies the selected module");
@@ -343,7 +355,7 @@ namespace DiskGuide
             option.Select();
             Expect(policyCombo.SelectedIndex==1,"Styled dropdown retains native accessible selection");
             comboAutomation.Collapse();Expect(!policyCombo.IsDropDownOpen,"Styled dropdown closes");policyCombo.SelectedIndex=0;
-            Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"FoldersTab"),"Directory browser is the landing page");
+            Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"FoldersTab"),"Folder browser remains available from home");
             SelectPath(w,Inside("button"));
             Pump(()=>C<TextBlock>(w,"FolderSizeValue").Text=="10 B","Automatic folder size with personal and candidate files");
             Expect(C<TextBlock>(w,"FolderReadyValue").Text=="5 B","Cleanable size differs from total");
@@ -436,6 +448,7 @@ namespace DiskGuide
             VerifyKeepUi(fixture,uiStore,preview);
             w.Close();
 
+            VerifyHomeStates(uiStore,preview);
             if (!String.IsNullOrWhiteSpace(preview)) SaveRealPreviews(preview);
             app.Shutdown();
         }
@@ -580,6 +593,8 @@ namespace DiskGuide
                     Expect(!active.IsCancellationRequested,"Switching pages does not cancel running ranking");
                     C<Button>(w,"ScanTasksBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Expect(tabs.SelectedItem==C<TabItem>(w,"RankingTab") && calls==1 && !active.IsCancellationRequested,"Task shortcut returns to original running ranking");
+                    tabs.SelectedItem=C<TabItem>(w,"OverviewTab");C<Button>(w,"HomeLargeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Expect(tabs.SelectedItem==C<TabItem>(w,"RankingTab") && calls==1 && !active.IsCancellationRequested,"Home shortcut also preserves the active disk scan");
                     tabs.SelectedItem=C<TabItem>(w,"StartupTab");release.Set();
                     Pump(()=>C<TextBlock>(w,"RankNotice").Text.StartsWith("已读"),"Ranking completes while hidden");
                     tabs.SelectedItem=C<TabItem>(w,"RankingTab");
@@ -739,6 +754,43 @@ namespace DiskGuide
             shell.MotionAllowed=()=>SystemParameters.ClientAreaAnimation;
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
         }
+        private static void VerifyHomeSuggestions()
+        {
+            var normal=new ScanRow{Rule=new Rule{Path=@"C:\cache",Kind=FileKind.Web}};normal.Files.Add(new Entry{Bytes=10});normal.Files.Add(new Entry{Bytes=90,Preserved=true});
+            var optional=new ScanRow{Rule=new Rule{Path=@"C:\shader",Kind=FileKind.Shader}};optional.Files.Add(new Entry{Bytes=200});
+            var busyRow=new ScanRow{Rule=new Rule{Path=@"C:\busy",Kind=FileKind.Web},BusyApp=true};busyRow.Files.Add(new Entry{Bytes=300});
+            var other=new ScanRow{Rule=new Rule{Path=@"D:\cache",Kind=FileKind.Web}};other.Files.Add(new Entry{Bytes=40});
+            var unreadable=new ScanRow{Rule=new Rule{Path=@"C:\unreadable",Kind=FileKind.Web},Errors=1};
+            var all=new[]{normal,optional,busyRow,other,unreadable};var result=CleanupSuggestion.From(all,"C:");
+            Expect(result.Bytes==10 && result.Items==1 && result.BusyItems==1 && result.UnreadableItems==1,"Guided estimate separates eligible files, keep rules, optional cache and incomplete reads");
+            Expect(result.OptionalBytes==200 && result.BusyBytes==300,"Caches requiring confirmation or closing apps are shown separately");
+            Expect(CleanupSuggestion.From(all,"D:").Bytes==40,"Guided estimate follows the selected disk");
+            Expect(new Folder{Policy="系统保护"}.Advice=="不要删除" && new Folder{Policy="需要判断"}.Advice=="先确认用途" && new Folder{Policy="可清部分"}.Advice=="只清缓存","Plain folder advice never labels a whole mixed folder safe to delete");
+            Expect(Engine.Size(1024)=="1 KB" && Engine.Size(1024L*1024*1024)=="1 GB","Everyday size labels retain 1024-based measurements");
+        }
+        private static void VerifyHomeStates(PreserveStore store,string preview)
+        {
+            var empty=new Shell(()=>new List<Rule>(),store);Hidden(empty.View);
+            try {
+                Pump(()=>C<Button>(empty.View,"HomeCleanBtn").IsEnabled,"Empty home scan finishes");
+                Expect(C<TextBlock>(empty.View,"HomeCleanSize").Text=="暂未发现可清理缓存" && C<TextBlock>(empty.View,"HomeCleanHint").Text.Contains("不代表"),"No cache result does not claim the entire disk is clean");
+                if(!String.IsNullOrWhiteSpace(preview))Image(empty.View,preview,"home-empty.png");
+            }finally{empty.View.Close();}
+            Put(@"home-optional\0123456789abcdef.nvph","optional cache",true);
+            var optional=new Shell(()=>new List<Rule>{R("home-optional",FileKind.Shader,0)},store);Hidden(optional.View);
+            try {
+                C<RadioButton>(optional.View,"Drive"+Path.GetPathRoot(box)[0]).IsChecked=true;
+                Pump(()=>C<Button>(optional.View,"HomeCleanBtn").IsEnabled,"Optional-cache home scan finishes");
+                Expect(C<TextBlock>(optional.View,"HomeCleanSize").Text=="还有缓存需要你确认","Optional cache is discoverable without claiming it is recommended");
+                C<Button>(optional.View,"HomeCleanBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Expect(C<TabControl>(optional.View,"Tabs").SelectedItem==C<TabItem>(optional.View,"CleanupTab") && !C<Button>(optional.View,"CleanBtn").IsEnabled,"Home opens optional cache without automatically selecting it");
+            }finally{optional.View.Close();}
+            var failed=new Shell(()=>{throw new IOException("fixture unavailable");},store);Hidden(failed.View);
+            try {
+                Pump(()=>C<TextBlock>(failed.View,"HomeCleanHint").Text.Contains("没有完成"),"Home scan failure is actionable");
+                Expect(C<TextBlock>(failed.View,"HomeCleanSize").Text=="还没有检查结果" && C<Button>(failed.View,"HomeCleanBtn").IsEnabled,"Failed scan cannot advertise zero cleanable bytes");
+            }finally{failed.View.Close();}
+        }
         private static void VerifyManagementUi(Shell shell,string preview)
         {
             var startup=new StartupInventoryResult();
@@ -748,14 +800,16 @@ namespace DiskGuide
             startup.Items[0].IconLocation=System.Reflection.Assembly.GetExecutingAssembly().Location;
             shell.StartupReader=()=>startup;
             var software=new SoftwareInventoryResult();
-            software.Items.Add(new SoftwareEntry{Name="示例笔记",Id="fixture-notes",Kind="桌面软件",Publisher="Example Studio",Version="2.4.0",InstallPath=@"D:\Apps\ExampleNotes",SizeText="85 MiB",UninstallCommand="fixture-only.exe"});
+            software.Items.Add(new SoftwareEntry{Name="示例笔记",Id="fixture-notes",Kind="桌面软件",Publisher="Example Studio",Version="2.4.0",InstallPath=@"D:\Apps\ExampleNotes",SizeText="85 MB",UninstallCommand="fixture-only.exe"});
             software.Items.Add(new SoftwareEntry{Name="示例系统组件",Id="fixture-system",Kind="商店应用",Publisher="Example",Version="1.0",SizeText="未登记",ProtectionReason="系统、框架或资源包，不在本工具中卸载。"});
             software.Items[0].IconLocation=System.Reflection.Assembly.GetExecutingAssembly().Location;
             shell.SoftwareReader=()=>software;
             var w=shell.View;
             w.Width=1180;w.Height=800;
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
-            Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Count==3,"Startup inventory binds fixture data");
+            Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Count==1,"Startup defaults to common login apps");
+            Expect(!C<Expander>(w,"StartupDetails").IsExpanded && !C<Button>(w,"ServicesBtn").IsVisible,"Technical startup details and service controls stay out of the default view");
+            C<ComboBox>(w,"StartupKind").SelectedIndex=0;
             Pump(()=>!Object.ReferenceEquals(startup.Items[0].Icon,AppIcons.Fallback),"Startup icon loads asynchronously after list binding");
             Expect(Descendants<System.Windows.Controls.Image>(C<DataGrid>(w,"StartupGrid")).Any(i=>Object.ReferenceEquals(i.Source,startup.Items[0].Icon)),"Startup row displays the resolved icon");
             Expect(C<StackPanel>(w,"DriveSwitcher").Visibility==Visibility.Collapsed,"Machine startup scope not falsely filtered by selected disk");
@@ -770,6 +824,7 @@ namespace DiskGuide
             Pump(()=>!Object.ReferenceEquals(software.Items[0].Icon,AppIcons.Fallback),"Software icon loads asynchronously after list binding");
             Expect(Descendants<System.Windows.Controls.Image>(C<DataGrid>(w,"SoftwareGrid")).Any(i=>Object.ReferenceEquals(i.Source,software.Items[0].Icon)),"Software row displays the resolved icon");
             Expect(C<Button>(w,"UninstallBtn").IsEnabled,"Eligible software offers explicit uninstall action");
+            Expect(!C<Expander>(w,"SoftwareDetails").IsExpanded && C<TextBlock>(w,"SoftwareAdvice").Text.Contains("重要文件"),"Software guidance is visible before opening technical details");
             C<ComboBox>(w,"SoftwareKind").SelectedIndex=2;
             Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count==1 && !C<Button>(w,"UninstallBtn").IsEnabled,"Protected package cannot launch uninstall");
             C<ComboBox>(w,"SoftwareKind").SelectedIndex=0;C<TextBox>(w,"SoftwareSearch").Text="D:\\Apps";
@@ -795,6 +850,9 @@ namespace DiskGuide
                 Pump(()=>C<TextBlock>(w,"StatusText").Text.StartsWith("扫描完成"),"Local preview scan");
                 var live=C<DataGrid>(w,"CleanGrid").Items.Cast<ScanRow>().ToList();
                 Expect(live.All(x=>!x.Rule.Optional || !x.Pick),"Optional production rules default off");
+                Image(w,preview,"home.png");
+                w.Width=810;w.Height=580;w.UpdateLayout();Image(w,preview,"home-compact.png");
+                w.Width=1180;w.Height=800;
                 C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"CleanupTab");
                 Pump(()=>C<DataGrid>(w,"CleanGrid").ActualWidth>400,"Preview cleanup layout");
                 Image(w,preview,"clean.png");
@@ -853,7 +911,7 @@ namespace DiskGuide
                 Directory.CreateDirectory(fresh);
                 box=fresh;
                 System.Windows.Media.RenderOptions.ProcessRenderMode=System.Windows.Interop.RenderMode.SoftwareOnly;
-                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyIcons(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
+                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyIcons(); VerifyHomeSuggestions(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
             }
             catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
             finally {if(box!=null && Directory.Exists(box))DeleteFixture(box);}

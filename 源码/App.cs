@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.7.0.0")]
+[assembly: AssemblyVersion("1.8.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -77,6 +77,7 @@ namespace DiskGuide
             WireManagement();
             WireActivity();
             WireSpace();
+            WireHome();
             Get<Button>("ScanTasksBtn").Click+=delegate{
                 if(ranking!=null)tabs.SelectedItem=Get<TabItem>("RankingTab");
                 else if(measuring!=null || browsing!=null)tabs.SelectedItem=folderTab;
@@ -242,16 +243,18 @@ namespace DiskGuide
             clean.ToolTip = selected.Count == 0 ? "先在当前类别中勾选可处理的文件。" :
                 "只处理当前磁盘、目录和类别中已勾选的 " + selected.Count + " 项。";
             clean.IsEnabled = !busy && keep.Error==null && selected.Count > 0;
-            Label("KeepNotice",keep.Error??("永久保留规则："+keep.Rules.Count+" 条 · 已保护 "+rows.SelectMany(r=>r.Files).Count(f=>f.Preserved)+" 个匹配文件"));
+            Label("KeepNotice",keep.Error??(keep.Rules.Count==0 ? "不想删除的文件，可以设置为始终保留。" : "已设置 "+keep.Rules.Count+" 项不清理 · 本次保留 "+rows.SelectMany(r=>r.Files).Count(f=>f.Preserved)+" 个文件"));
             Get<TextBlock>("KeepNotice").ToolTip=keep.Error??preserveStore.FilePath;
+            BindHome();
         }
         private void ShowCleanDetail()
         {
             var row = cleanGrid.SelectedItem as ScanRow;
-            Label("CleanWhy", row == null ? "选择项目可查看清理条件。" : row.Detail);
+            Label("CleanWhy", row == null ? "选择一项，看看清理后有什么影响。" : row.Explanation+(row.BusyApp ? " 请先退出这个软件，再重新扫描。" : "")+(row.Errors>0 ? " 部分文件没有读到，结果可能不完整。" : ""));
+            Label("CleanRule",row==null ? "" : row.Detail);
             Label("CleanPath", row == null ? "" : row.PathText);
             Get<Button>("PreviewFilesBtn").IsEnabled = !busy && row != null && row.Files.Count > 0;
-            if (row != null && row.SelectedCount != row.Files.Count) Label("CleanWhy", row.Detail + "  已排除 " + (row.Files.Count - row.SelectedCount) + " 个文件。");
+            if (row != null && row.SelectedCount != row.Files.Count) Label("CleanWhy", Get<TextBlock>("CleanWhy").Text + "  已排除 " + (row.Files.Count - row.SelectedCount) + " 个文件。");
         }
 
         private async Task Refresh(bool delete)
@@ -264,6 +267,7 @@ namespace DiskGuide
             var previous = rows.Where(r => r.CanPick).ToDictionary(r => r.Rule.Path, r => r.Pick, StringComparer.OrdinalIgnoreCase);
             var excluded = new HashSet<string>(rows.SelectMany(r => r.Files).Where(f => !f.Included).Select(f => f.Identity), StringComparer.OrdinalIgnoreCase);
             busy = true;
+            scanError=null;BindHome();
             Activity("cleanup",delete ? "正在清理已确认的文件…" : "正在扫描缓存目录…");
             string activityOutcome=delete ? "清理已停止" : "扫描已停止";
             bool activityFailed=true;
@@ -307,6 +311,7 @@ namespace DiskGuide
                 lifetime.Token.ThrowIfCancellationRequested();
                 rules = snapshot.Item1;
                 rows = snapshot.Item2;
+                scanCompleted=true;
                 foreach (var row in rows)
                 {
                     foreach (var file in row.Files) file.Included = !excluded.Contains(file.Identity);
@@ -323,6 +328,7 @@ namespace DiskGuide
             catch (Exception ex)
             {
                 activityFailed=true;activityOutcome=(final==null ? "" : final+" · ")+"读取失败，请重新扫描";
+                scanCompleted=false;scanError=ex.GetBaseException().Message;
                 rows = new List<ScanRow>();
                 Status((final == null ? "" : final + "  ") + "读取失败，请重新扫描。" + ex.GetBaseException().Message);
             }

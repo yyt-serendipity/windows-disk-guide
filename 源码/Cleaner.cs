@@ -83,8 +83,15 @@ namespace DiskGuide
         public string PathText { get { return Rule.Path; } }
         public string Drive { get { return PathText.Substring(0, 2).ToUpperInvariant(); } }
         public string SizeText { get { return Engine.Size(Bytes); } }
+        public string Explanation { get { switch(Rule.Kind) {
+            case FileKind.Web:return "打开网页或使用软件时留下的缓存。清理后，需要的内容会重新下载。";
+            case FileKind.Shader:return "游戏会重新生成这些缓存，下次启动可能短暂变慢。请先退出游戏。";
+            case FileKind.Dump:return "软件闪退时留下的问题记录。如果还在排查闪退原因，请保留。";
+            case FileKind.OldLog:return "软件较早的运行记录。只清理已识别的旧记录，保留配置和近期记录。";
+            default:return "软件留下的临时文件。只清理已识别、放置时间较长的部分，其他文件保留。";
+        } } }
         public bool CanPick { get { return !BusyApp && Files.Any(f=>!f.Preserved); } }
-        public string Status { get { return BusyApp ? "先退出应用" : Files.Count == 0 ? (Errors > 0 ? "访问受限" : "无符合文件") : Files.All(f=>f.Preserved) ? "保留规则保护" : Rule.Optional ? "手动勾选" : "可一键清理"; } }
+        public string Status { get { return BusyApp ? "先退出软件" : Files.Count == 0 ? (Errors > 0 ? "暂时无法读取" : "无需清理") : Files.All(f=>f.Preserved) ? "已设为不清理" : Rule.Optional ? "先看清理影响" : "可以清理"; } }
         public string Ink { get { return BusyApp || Rule.Optional ? "#92520D" : CanPick ? "#006C61" : "#637389"; } }
         public string Detail { get { return Rule.Why + "  符合规则 " + Files.Count.ToString("N0") + " 个文件。" +
                     (BusyApp ? " 检测到相关程序正在运行，退出后请重新扫描。" : "") +
@@ -125,7 +132,7 @@ namespace DiskGuide
         internal static readonly StringComparison CI = StringComparison.OrdinalIgnoreCase;
         public static string Size(long v)
         {
-            string[] units = { "B", "KiB", "MiB", "GiB", "TiB" }; double n = v; int i = 0;
+            string[] units = { "B", "KB", "MB", "GB", "TB" }; double n = v; int i = 0;
             while (n >= 1024 && i < units.Length - 1) { n /= 1024; i++; }
             return n.ToString(i == 0 ? "0" : "0.##") + " " + units[i];
         }

@@ -62,8 +62,8 @@ namespace DiskGuide
             Get<StackPanel>("DriveSwitcher").Visibility = machine ? Visibility.Collapsed : Visibility.Visible;
             Get<StackPanel>("MachineScope").Visibility = machine ? Visibility.Visible : Visibility.Collapsed;
             refresh.ToolTip = OnStartup ? "重新读取本机启动设置" : OnSoftware ? "重新读取本机软件登记" : "重新扫描缓存与目录";
-            if (OnStartup) Status("开机启动 · 只读盘点，管理入口交由 Windows 处理。");
-            else if (OnSoftware) Status("软件管理 · 调用官方卸载前会核对目标并确认。");
+            if (OnStartup) Status("查看哪些软件会随电脑启动。可以打开 Windows 设置关闭。");
+            else if (OnSoftware) Status("不再用的软件可以卸载；不认识的先保留。");
             else if (!busy) Status(scope + @"\ · 目录和缓存仅显示当前磁盘范围。");
             if (OnStartup && !startupLoaded) await LoadStartup();
             if (OnSoftware && !softwareLoaded) await LoadSoftware();
@@ -120,7 +120,9 @@ namespace DiskGuide
             Label("StartupCount", items.Count + " / " + startupInventory.Items.Count + " 项");
             Label("StartupEmpty", startupLoading ? "正在读取启动项…" : "没有匹配项。可清空搜索或切换启动来源。");
             Get<TextBlock>("StartupEmpty").Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            SetNotice("StartupNotice", startupInventory.Warnings, "这里只读取设置。任务可能受账户、电源或日期条件限制；并非所有启动机制都在此列出。");
+            SetNotice("StartupNotice", startupInventory.Warnings, "关闭开机启动不会卸载软件，需要时仍可手动打开。这里不一定能找到所有启动方式。");
+            Get<Button>("TaskSettingsBtn").Visibility=Get<ComboBox>("StartupKind").SelectedIndex==2 ? Visibility.Visible : Visibility.Collapsed;
+            Get<Button>("ServicesBtn").Visibility=Get<ComboBox>("StartupKind").SelectedIndex==3 ? Visibility.Visible : Visibility.Collapsed;
             ShowStartup();
         }
         private void ShowStartup()
@@ -170,7 +172,7 @@ namespace DiskGuide
             Label("SoftwareCount", items.Count + " / " + softwareInventory.Items.Count + " 项");
             Label("SoftwareEmpty", softwareLoading ? "正在读取软件清单…" : "没有匹配软件。可清空搜索或切换软件类别。");
             Get<TextBlock>("SoftwareEmpty").Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            SetNotice("SoftwareNotice", softwareInventory.Warnings, "免安装软件或其他账户的应用可能未登记。登记大小不等于实际占用。");
+            SetNotice("SoftwareNotice", softwareInventory.Warnings, "大小由软件提供，仅供参考。想看实际占用，请点「查看占用」。部分软件可能不在此列表。");
             ShowSoftware();
         }
         private void SetNotice(string name, List<string> warnings, string normal)
@@ -181,7 +183,8 @@ namespace DiskGuide
         private void ShowSoftware()
         {
             var item = Get<DataGrid>("SoftwareGrid").SelectedItem as SoftwareEntry;
-            Label("SoftwareTitle", item == null ? "选择要管理的软件" : item.Name);
+            Label("SoftwareTitle", item == null ? "选择一个软件，看看是否还需要" : item.Name);
+            Label("SoftwareAdvice",item==null ? "不认识的软件先保留。想知道占多少空间，可以点「查看占用」。" : item.CanUninstall ? "如果已经不用，可以卸载。请先保存这个软件里的重要文件。" : "建议先保留。"+item.ProtectionReason);
             Get<TextBox>("SoftwareDetail").Text = item == null ? "可搜索名称、发布者或安装位置。卸载前会再次显示目标软件。" :
                 "发布者：" + item.Publisher + "  ·  " + item.Kind + "\n安装位置：" + (String.IsNullOrWhiteSpace(item.InstallPath) ? "未登记" : item.InstallPath) +
                 "\n" + (item.CanUninstall ? "先运行官方卸载，再核查独占安装目录的残留。个人数据与共享组件不按名称删除。" : item.ProtectionReason);

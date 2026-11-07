@@ -15,6 +15,15 @@ namespace DiskGuide
         public string Name { get; set; }
         public string Drive { get { return PathText.Substring(0, 2).ToUpperInvariant(); } }
         public string Policy { get; set; }
+        public string Advice { get { switch(Policy) {
+            case "可清部分": return "只清缓存";
+            case "可一键清理": return "可清缓存";
+            case "手动勾选": return "先看影响";
+            case "需要判断": return "先确认用途";
+            case "系统保护": return "不要删除";
+            case "保留": return "建议保留";
+            default:return Policy;
+        } } }
         public string Purpose { get; set; }
         private UsagePart measured;
         public UsagePart Measured
@@ -56,9 +65,9 @@ namespace DiskGuide
                 "仅清此目录第一层满 7 天的 .tmp 和 .temp 文件。安装包、虚拟磁盘和子目录会保留。");
             Add(rules, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp"), "Windows 临时文件", FileKind.OldTemp, 7,
                 "仅清第一层满 7 天的临时文件，使用当前 Windows 账户权限。");
-            Add(rules, Path.Combine(local, "CrashDumps"), "应用崩溃转储", FileKind.Dump, 7,
+            Add(rules, Path.Combine(local, "CrashDumps"), "软件闪退记录", FileKind.Dump, 7,
                 "满 7 天的 .dmp 故障记录。若仍在排查软件闪退，请保留。");
-            Add(rules, Path.Combine(local, @"NVIDIA\DXCache"), "NVIDIA 着色器缓存", FileKind.Shader, 0,
+            Add(rules, Path.Combine(local, @"NVIDIA\DXCache"), "NVIDIA 游戏缓存", FileKind.Shader, 0,
                 "清理后游戏会重新编译着色器，首次进入时可能短暂卡顿。请退出游戏后再勾选。");
             Browser(rules, Path.Combine(local, @"Google\Chrome\User Data"), "Chrome", "chrome");
             Browser(rules, Path.Combine(local, @"Microsoft\Edge\User Data"), "Edge", "msedge");

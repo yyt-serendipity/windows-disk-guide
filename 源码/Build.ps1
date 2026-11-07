@@ -44,7 +44,7 @@ try {
         (Join-Path $PSScriptRoot 'StartupInventory.cs'),(Join-Path $PSScriptRoot 'SoftwareInventory.cs'),(Join-Path $PSScriptRoot 'Management.cs'),
         (Join-Path $PSScriptRoot 'AppSpace.cs'),(Join-Path $PSScriptRoot 'Space.cs'),(Join-Path $PSScriptRoot 'FilePreview.cs'),
         (Join-Path $PSScriptRoot 'Preserve.cs'),(Join-Path $PSScriptRoot 'ScanWork.cs'),(Join-Path $PSScriptRoot 'CleanupReview.cs'),
-        (Join-Path $PSScriptRoot 'AppIcons.cs'),(Join-Path $PSScriptRoot 'Activity.cs'))
+        (Join-Path $PSScriptRoot 'AppIcons.cs'),(Join-Path $PSScriptRoot 'Activity.cs'),(Join-Path $PSScriptRoot 'Home.cs'))
     & $compiler '/target:winexe' '/main:DiskGuide.Program' ('/out:' + $binary) @common
     if ($LASTEXITCODE -ne 0) {throw 'Build failed.'}
     if ($Check) {
