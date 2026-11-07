@@ -26,12 +26,14 @@ try {
         ('/resource:' + (Join-Path $PSScriptRoot 'Assets\app-icon.png') + ',AppIcon.png'),
         ('/r:' + (Join-Path $framework 'WPF\PresentationFramework.dll')),('/r:' + (Join-Path $framework 'WPF\PresentationCore.dll')),
         ('/r:' + (Join-Path $framework 'WPF\WindowsBase.dll')),('/r:' + (Join-Path $framework 'System.Xaml.dll')),
+        ('/r:' + (Join-Path $framework 'System.Windows.Forms.dll')),
         (Join-Path $PSScriptRoot 'App.cs'),(Join-Path $PSScriptRoot 'Catalog.cs'),(Join-Path $PSScriptRoot 'Cleaner.cs'),
         (Join-Path $PSScriptRoot 'Usage.cs'),(Join-Path $PSScriptRoot 'Browser.cs'),
         (Join-Path $PSScriptRoot 'StartupInventory.cs'),(Join-Path $PSScriptRoot 'SoftwareInventory.cs'),(Join-Path $PSScriptRoot 'Management.cs'),
         (Join-Path $PSScriptRoot 'AppSpace.cs'),(Join-Path $PSScriptRoot 'Space.cs'),(Join-Path $PSScriptRoot 'FilePreview.cs'),
         (Join-Path $PSScriptRoot 'Preserve.cs'),(Join-Path $PSScriptRoot 'ScanWork.cs'),(Join-Path $PSScriptRoot 'CleanupReview.cs'),
-        (Join-Path $PSScriptRoot 'AppIcons.cs'),(Join-Path $PSScriptRoot 'Activity.cs'),(Join-Path $PSScriptRoot 'Home.cs'))
+        (Join-Path $PSScriptRoot 'AppIcons.cs'),(Join-Path $PSScriptRoot 'Activity.cs'),(Join-Path $PSScriptRoot 'Home.cs'),
+        (Join-Path $PSScriptRoot 'Planning.cs'),(Join-Path $PSScriptRoot 'Transfer.cs'))
     & $compiler '/target:winexe' '/main:DiskGuide.Program' ('/out:' + $binary) @common
     if ($LASTEXITCODE -ne 0) {throw 'Build failed.'}
     if ($Check) {

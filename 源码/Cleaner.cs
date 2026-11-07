@@ -12,7 +12,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace DiskGuide
 {
-    internal enum FileKind { Web, OldTemp, OldLog, Shader, Dump }
+    internal enum FileKind { Web, OldTemp, OldLog, Shader, Dump, DriverDownload, OllamaDownload, YarnArchive, NpmContent, ElectronArchive, GoBuild }
     internal enum Boundary { Clear, Missing, Link, Inaccessible }
 
     internal sealed class Rule
@@ -28,7 +28,7 @@ namespace DiskGuide
             return OriginalAppPath != null && PhysicalAppPath != null &&
                    Engine.Below(Path, PhysicalAppPath) && Engine.DirectoryResolvesTo(OriginalAppPath, PhysicalAppPath);
         }
-        public bool Optional { get { return Kind == FileKind.Shader || Kind == FileKind.Dump; } }
+        public bool Optional { get { return Kind == FileKind.Shader || Kind == FileKind.Dump || Kind >= FileKind.DriverDownload; } }
         private static readonly Regex WebFile = new Regex(@"^(?:index|data_[0-3]|f_[0-9a-f]{6,12}|[0-9a-f]{16}_(?:[0-9]+|s))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex ShaderFile = new Regex(@"^[0-9a-f]{8,64}\.nvph$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -38,6 +38,12 @@ namespace DiskGuide
             string relative = full.Substring(Path.TrimEnd('\\').Length + 1);
             string name = System.IO.Path.GetFileName(relative);
             string sub = System.IO.Path.GetDirectoryName(relative) ?? "";
+            if(Kind==FileKind.DriverDownload)return Regex.IsMatch(relative,@"^[a-z0-9._\\-]+\.(exe|zip)$",RegexOptions.IgnoreCase) && (name.IndexOf("nvidia",StringComparison.OrdinalIgnoreCase)>=0 || Regex.IsMatch(name,@"^\d{3}\.\d{2}[-_].*\.exe$",RegexOptions.IgnoreCase));
+            if(Kind==FileKind.OllamaDownload)return Regex.IsMatch(relative,@"^[a-f0-9]{64}\\OllamaSetup\.exe$",RegexOptions.IgnoreCase);
+            if(Kind==FileKind.YarnArchive)return sub.Length==0 && name.EndsWith(".zip",StringComparison.OrdinalIgnoreCase);
+            if(Kind==FileKind.NpmContent)return Regex.IsMatch(relative,@"^[a-f0-9]{2}\\[a-f0-9]{2}\\[a-f0-9]{124}$",RegexOptions.IgnoreCase);
+            if(Kind==FileKind.ElectronArchive)return Regex.IsMatch(relative,@"^(?:[a-f0-9]{64}\\)?electron-v[0-9.]+-win32-(?:x64|arm64|ia32)\.zip$",RegexOptions.IgnoreCase);
+            if(Kind==FileKind.GoBuild)return Regex.IsMatch(relative,@"^[a-f0-9]{2}\\[a-f0-9]{64}-[ad]$",RegexOptions.IgnoreCase);
             if (Kind == FileKind.Web)
                 return sub.Length == 0 ? WebFile.IsMatch(name) :
                     sub.Equals("index-dir", StringComparison.OrdinalIgnoreCase) && name.Equals("the-real-index", StringComparison.OrdinalIgnoreCase);
@@ -53,6 +59,10 @@ namespace DiskGuide
         {
             if (!Engine.Below(full, Path)) return false;
             string rel = full.Substring(Path.TrimEnd('\\').Length + 1);
+            if(Kind==FileKind.DriverDownload)return rel.Split('\\').Length<=4 && Regex.IsMatch(rel,@"^[a-z0-9._\\-]+$",RegexOptions.IgnoreCase);
+            if(Kind==FileKind.OllamaDownload || Kind==FileKind.ElectronArchive)return Regex.IsMatch(rel,@"^[a-f0-9]{64}$",RegexOptions.IgnoreCase);
+            if(Kind==FileKind.NpmContent)return Regex.IsMatch(rel,@"^[a-f0-9]{2}(?:\\[a-f0-9]{2})?$",RegexOptions.IgnoreCase);
+            if(Kind==FileKind.GoBuild)return Regex.IsMatch(rel,@"^[a-f0-9]{2}$",RegexOptions.IgnoreCase);
             return (Kind == FileKind.Web && rel.Equals("index-dir", StringComparison.OrdinalIgnoreCase)) ||
                    (Kind == FileKind.OldLog && rel.Equals("service", StringComparison.OrdinalIgnoreCase));
         }
@@ -84,6 +94,8 @@ namespace DiskGuide
         public string Drive { get { return PathText.Substring(0, 2).ToUpperInvariant(); } }
         public string SizeText { get { return Engine.Size(Bytes); } }
         public string Explanation { get { switch(Rule.Kind) {
+            case FileKind.DriverDownload:case FileKind.OllamaDownload:return "较早下载的更新安装包。不是正在使用的程序；以后更新可能需要重新下载。";
+            case FileKind.YarnArchive:case FileKind.NpmContent:case FileKind.ElectronArchive:case FileKind.GoBuild:return "开发工具可重新下载或生成的缓存。清理后，下次构建可能变慢或需要联网。";
             case FileKind.Web:return "打开网页或使用软件时留下的缓存。清理后，需要的内容会重新下载。";
             case FileKind.Shader:return "游戏会重新生成这些缓存，下次启动可能短暂变慢。请先退出游戏。";
             case FileKind.Dump:return "软件闪退时留下的问题记录。如果还在排查闪退原因，请保留。";
@@ -124,6 +136,16 @@ namespace DiskGuide
         public string Reason { get; set; }
         public long Bytes { get; set; }
         public string SizeText { get { return Engine.Size(Bytes); } }
+        public string NextStep { get { switch(Code){
+            case CleanCode.Busy:return "正常退出对应软件，再重新扫描清理。";
+            case CleanCode.Permission:return "可右键程序，以管理员身份重新打开后再扫描；不认识的系统文件请保留。";
+            case CleanCode.Kept:return "这是你设置的保护范围。需要调整时打开「保留设置」。";
+            case CleanCode.Excluded:return "本次未勾选，文件保持原样。";
+            case CleanCode.Deleted:return "已完成，无需再次处理。";
+            case CleanCode.Missing:return "文件已经不存在，无需再次清理。";
+            case CleanCode.ConfigError:return "先修复「保留设置」中的读取问题。";
+            default:return "先重新扫描。仍无法处理时保留文件，查看原因。";
+        } } }
         public string Status { get { switch(Code){case CleanCode.Deleted:return "已删除";case CleanCode.Excluded:return "手动排除";case CleanCode.Kept:return "永久保留";case CleanCode.Busy:return "被占用";case CleanCode.Permission:return "权限不足";case CleanCode.Missing:return "已不存在";case CleanCode.Changed:return "文件已变化";case CleanCode.Unsafe:return "安全检查未通过";case CleanCode.RuleChanged:return "规则已变化";case CleanCode.ConfigError:return "保留规则不可读";case CleanCode.Cancelled:return "已取消";default:return "未完成";} } }
     }
 
@@ -299,7 +321,7 @@ namespace DiskGuide
             const FileAttributes reject = FileAttributes.Directory | FileAttributes.System | FileAttributes.ReparsePoint | FileAttributes.ReadOnly;
             return info.Links == 1 && (info.IndexHigh != 0 || info.IndexLow != 0) && ((FileAttributes)info.Attributes & reject) == 0;
         }
-        private static Entry Snapshot(string path)
+        internal static Entry Snapshot(string path)
         {
             using (var h=CreateFile(path,0x80,7,IntPtr.Zero,3,0x00200000,IntPtr.Zero))
             {
@@ -311,6 +333,38 @@ namespace DiskGuide
         }
         private static FileOutcome Result(Rule rule,Entry file,CleanCode code,string reason)
         {return new FileOutcome{PathText=file.Path,Project=rule.Name,Bytes=file.Bytes,Code=code,Reason=reason};}
+        internal static FileOutcome DeleteVerifiedTransfer(Entry file,string destination,string digest)
+        {
+            var rule=new Rule{Name="已验证的迁移原件"};
+            if(CheckDirectory(Path.GetDirectoryName(file.Path))!=Boundary.Clear || CheckDirectory(Path.GetDirectoryName(destination))!=Boundary.Clear)return Result(rule,file,CleanCode.Unsafe,"目录发生变化，保留原件。");
+            using(var h=CreateFile(file.Path,0x80000000|0x10000|0x80,0,IntPtr.Zero,3,0x00200000,IntPtr.Zero))
+            {
+                HandleInfo info;if(h.IsInvalid || !GetFileInformationByHandle(h,out info))return NativeError(rule,file,Marshal.GetLastWin32Error());
+                if(!Regular(info) || !FinalPathMatches(h,file.Path) || Length(info)!=file.Bytes || FileTime(info)!=file.Modified || info.Volume!=file.Volume || info.IndexHigh!=file.IndexHigh || info.IndexLow!=file.IndexLow)return Result(rule,file,CleanCode.Changed,"原件身份已变化，未删除。");
+                using(var source=new FileStream(h,FileAccess.Read))
+                using(var target=new FileStream(destination,FileMode.Open,FileAccess.Read,FileShare.Read,1048576,FileOptions.SequentialScan))
+                {
+                    if(TransferService.Hash(source)!=digest || TransferService.Hash(target)!=digest)return Result(rule,file,CleanCode.Changed,"文件内容与已验证副本不同，未删除。");
+                    byte flag=1;return SetFileInformationByHandle(h,4,ref flag,1)?Result(rule,file,CleanCode.Deleted,"D 盘副本和原件再次校验通过。"):NativeError(rule,file,Marshal.GetLastWin32Error());
+                }
+            }
+        }
+        internal static void CopyTransferFile(Entry file,string destination,CancellationToken token)
+        {
+            if(CheckDirectory(Path.GetDirectoryName(file.Path))!=Boundary.Clear || CheckDirectory(Path.GetDirectoryName(destination))!=Boundary.Clear)throw new IOException("复制路径发生变化。");
+            using(var h=CreateFile(file.Path,0x80000000|0x80,0,IntPtr.Zero,3,0x00200000|0x08000000,IntPtr.Zero))
+            {
+                HandleInfo info;if(h.IsInvalid || !GetFileInformationByHandle(h,out info))throw new IOException("文件被占用或无法读取，请退出相关软件后重新检查。",new Win32Exception(Marshal.GetLastWin32Error()));
+                if(!Regular(info) || ((FileAttributes)info.Attributes&(FileAttributes.Encrypted|FileAttributes.Offline))!=0 || !FinalPathMatches(h,file.Path) || Length(info)!=file.Bytes || FileTime(info)!=file.Modified || info.Volume!=file.Volume || info.IndexHigh!=file.IndexHigh || info.IndexLow!=file.IndexLow)throw new IOException("文件身份或内容属性已变化，请重新检查。");
+                using(var source=new FileStream(h,FileAccess.Read))
+                using(var target=new FileStream(destination,FileMode.CreateNew,FileAccess.Write,FileShare.None,1048576))
+                {
+                    if(!FinalPathMatches(target.SafeFileHandle,destination))throw new IOException("目标实际位置发生变化，原件保留。");
+                    var buffer=new byte[1048576];int count;while((count=source.Read(buffer,0,buffer.Length))>0){token.ThrowIfCancellationRequested();target.Write(buffer,0,count);}
+                }
+            }
+            File.SetLastWriteTimeUtc(destination,DateTime.FromFileTimeUtc(file.Modified));
+        }
         internal static CleanCode ErrorCode(int code)
         {return code==32 || code==33?CleanCode.Busy:code==5?CleanCode.Permission:code==2 || code==3?CleanCode.Missing:CleanCode.Failed;}
         private static FileOutcome NativeError(Rule rule,Entry file,int code)

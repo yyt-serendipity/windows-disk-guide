@@ -81,6 +81,7 @@ namespace DiskGuide
                 var result=await ScanWork.Run(()=>RankingReader(path,cts.Token,(bytes,files)=>((IProgress<Tuple<long,long>>)progress).Report(Tuple.Create(bytes,files))),cts.Token);
                 if(ranking!=cts || cts.IsCancellationRequested)return;
                 ranked=result;Label("RankTotal",result.Total.SizeText);
+                RecordFolderGrowth(path,result);
                 Label("RankNotice","已读 "+result.Total.Files.ToString("N0")+" 个文件 · 跳过 "+result.Total.Skipped+" 处 · "+DateTime.Now.ToString("HH:mm:ss")+" · 文件长度合计，不是可释放空间");
             }
             catch(OperationCanceledException) { if(ranking==cts){Label("RankTotal","已取消");Label("RankNotice","统计未完成，未生成排行。可重新开始。");} }

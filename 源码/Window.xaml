@@ -263,10 +263,30 @@
                 <Button x:Name="HomeCleanBtn" Grid.Column="1" Content="正在检查" Style="{StaticResource Action}" VerticalAlignment="Center" Padding="18,10"/>
               </Grid>
             </Border>
-            <TextBlock Text="还想腾出更多空间？" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,10"/>
+            <DockPanel Margin="0,0,0,12"><Button x:Name="HomeOptionalBtn" Content="查看需确认的项目" DockPanel.Dock="Right" Style="{StaticResource LinkButton}"/><TextBlock x:Name="HomeOptionalText" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#78521D"/></DockPanel>
+            <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,12"><StackPanel>
+              <DockPanel><Button x:Name="HomeProtectionBtn" Content="管理保留设置" Style="{StaticResource LinkButton}" DockPanel.Dock="Right"/><TextBlock Text="这些文件，始终保留" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+              <TextBlock x:Name="HomeProtectionText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+              <WrapPanel><Button x:Name="HomeProtectGamesBtn" Content="保护游戏缓存" Style="{StaticResource SmallButton}" Margin="0,0,8,0"/><Button x:Name="HomeProtectFolderBtn" Content="保护 EDA / 其他文件夹" Style="{StaticResource SmallButton}"/></WrapPanel>
+            </StackPanel></Border>
+            <TextBlock x:Name="HomeResultText" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,6" Visibility="Collapsed"/>
+            <Button x:Name="HomeResultsBtn" Content="查看清理结果和下一步" HorizontalAlignment="Left" Style="{StaticResource LinkButton}" Margin="0,0,0,12" Visibility="Collapsed"/>
+            <TextBlock Text="继续腾出空间" FontSize="16" FontWeight="SemiBold" Margin="0,2,0,10"/>
+            <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,8"><DockPanel>
+              <Button x:Name="HomeRecycleBtn" Content="清空回收站…" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
+              <StackPanel><TextBlock Text="已删除、还留在回收站的文件" FontWeight="SemiBold"/><TextBlock x:Name="HomeRecycleText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+            </DockPanel></Border>
+            <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,8"><DockPanel>
+              <Button x:Name="HomeTransferBtn" Content="迁移到 D 盘" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
+              <StackPanel><TextBlock Text="需要保留的大文件，换个位置存" FontWeight="SemiBold"/><TextBlock x:Name="HomeTransferText" Text="选择个人文件夹后计算大小；先复制和校验，再切换路径，原件不会提前删除。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+            </DockPanel></Border>
             <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,8"><DockPanel>
               <Button x:Name="HomeLargeBtn" Content="看看谁占空间" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
               <StackPanel><TextBlock Text="找出占空间的大文件" FontWeight="SemiBold"/><TextBlock Text="视频、安装包或旧文件可能很大，是否需要保留由你决定。" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
+            </DockPanel></Border>
+            <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,12"><DockPanel>
+              <Button x:Name="HomeGrowthBtn" Content="查看空间变化" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
+              <StackPanel><TextBlock Text="哪些位置又变大了？" FontWeight="SemiBold"/><TextBlock x:Name="HomeGrowthText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel>
             </DockPanel></Border>
             <Border Style="{StaticResource Frame}" Padding="17,12" Margin="0,0,0,15"><DockPanel>
               <Button x:Name="HomeSoftwareBtn" Content="查看已装软件" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>

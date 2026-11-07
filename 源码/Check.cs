@@ -266,7 +266,12 @@ namespace DiskGuide
             if(String.IsNullOrWhiteSpace(dir))return;
             var content=(FrameworkElement)w.Content;content.UpdateLayout();
             var image=new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth),(int)Math.Ceiling(content.ActualHeight),96,96,PixelFormats.Pbgra32);
-            image.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
+            var visual=new DrawingVisual();using(var drawing=visual.RenderOpen()){
+                var bounds=new Rect(0,0,content.ActualWidth,content.ActualHeight);
+                drawing.DrawRectangle(w.Background??Brushes.White,null,bounds);
+                drawing.DrawRectangle(new VisualBrush(content),null,bounds);
+            }
+            image.Render(visual);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));
             using(var output=File.Create(Path.Combine(dir,name)))encoder.Save(output);
         }
         private static void VerifyUsage()
@@ -335,6 +340,21 @@ namespace DiskGuide
             Expect(C<TextBlock>(w,"HomeCleanSize").Text=="12 B","Home suggestion excludes optional, running-app and unrelated files");
             Expect(C<TextBlock>(w,"HomeDiskAdvice").Foreground.ToString()=="#FF20324A","Home text does not inherit selected navigation colors");
             Expect(C<TextBlock>(w,"HomeCleanHint").Text.Contains("先退出软件"),"Home explains why some cache cannot be cleaned yet");
+            Expect(C<Button>(w,"HomeProtectionBtn").IsVisible && C<Button>(w,"HomeRecycleBtn").IsVisible && C<Button>(w,"HomeTransferBtn").IsVisible && C<Button>(w,"HomeGrowthBtn").IsVisible,"Home exposes protection, recycle, migration and growth actions");
+            C<Button>(w,"HomeGrowthBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var growthWindow=Application.Current.Windows.Cast<Window>().Single(x=>x!=w && x.Title=="最近哪些位置又变大了");
+            growthWindow.UpdateLayout();Expect(Descendants<DataGrid>(growthWindow).Single().Columns[0].ActualWidth>=150,"Growth history keeps a readable location column");
+            if(!String.IsNullOrWhiteSpace(preview))Image(growthWindow,preview,"growth.png");growthWindow.Close();
+            fixture.TransferFactory=file=>new TransferService(file,box);
+            Put(@"ui-transfer\sample.txt","ui migration fixture",false);var uiTransfer=new TransferService(Path.ChangeExtension(uiStore.FilePath,"transfer.xml"),box);
+            var uiJob=uiTransfer.Inspect(Inside("ui-transfer"),new KeepSnapshot(),CancellationToken.None,s=>{});uiTransfer.Copy(uiJob,new KeepSnapshot(),CancellationToken.None,s=>{});uiTransfer.Switch(uiJob,new KeepSnapshot(),CancellationToken.None,s=>{});
+            C<Button>(w,"HomeTransferBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var transferWindow=Application.Current.Windows.Cast<Window>().Single(x=>x!=w && x.Title=="安全迁移到 D 盘");
+            Expect(Descendants<TextBlock>(transferWindow).Any(x=>x.Text=="等待使用验证") && Descendants<Button>(transferWindow).Single(b=>Object.Equals(b.Content,"我已验证可用，删除原件…")).IsEnabled,"Migration UI resumes waiting for user validation without auto-deleting the original");
+            Expect(Directory.Exists(uiJob.Backup),"Opening the migration UI does not remove a pending original");
+            if(!String.IsNullOrWhiteSpace(preview))Image(transferWindow,preview,"migration.png");
+            transferWindow.Width=650;transferWindow.Height=480;transferWindow.UpdateLayout();
+            if(!String.IsNullOrWhiteSpace(preview))Image(transferWindow,preview,"migration-compact.png");transferWindow.Close();
             if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"home-fixture.png");
             C<Button>(w,"HomeCleanBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"CleanupTab") && C<ListBox>(w,"CleanFilter").SelectedIndex==1 && File.Exists(eligible),"Home action opens recommended choices without deleting anything");
@@ -930,7 +950,7 @@ namespace DiskGuide
             // Explicit local opt-in only. Screenshots may contain local account or folder names.
             // Never click the delete action in a window constructed with production rules.
             Directory.CreateDirectory(preview);
-            var shell=new Shell(Catalog.Rules);Window w = shell.View;
+            var shell=new Shell(Catalog.Rules,new PreserveStore(Inside(@"real-preview-settings\keep-rules.xml")));Window w = shell.View;
             Hidden(w);
             try
             {
@@ -984,6 +1004,46 @@ namespace DiskGuide
             }
             finally {if(File.Exists(file))File.Delete(file);Directory.Delete(test,false);}
         }
+        private static void Refuses(Action action,string label)
+        {bool refused=false;try{action();}catch(IOException){refused=true;}catch(UnauthorizedAccessException){refused=true;}Expect(refused,label);}
+        private static void VerifyPlanningAndTransfer()
+        {
+            var nvidia=R("package-rule",FileKind.DriverDownload,7);
+            Expect(nvidia.Accepts(Path.Combine(nvidia.Path,@"grd\abc\610.62-notebook-win10-win11.exe"),Old,DateTime.UtcNow),"Known old driver downloads are recognized");
+            Expect(!nvidia.Accepts(Path.Combine(nvidia.Path,"personal.exe"),Old,DateTime.UtcNow) && !nvidia.Accepts(Path.Combine(nvidia.Path,"610.62-driver.exe"),DateTime.UtcNow,DateTime.UtcNow) && nvidia.Optional,"Unknown executables and recent updates stay out of cleanup; update downloads require opt-in");
+            var npm=R("npm-rule",FileKind.NpmContent,7);string cachePath=Path.Combine(npm.Path,@"ab\cd\"+new string('a',124));
+            Expect(npm.Accepts(cachePath,Old,DateTime.UtcNow) && !npm.Accepts(Path.Combine(npm.Path,".npmrc"),Old,DateTime.UtcNow),"npm cache hashes cannot include credentials or arbitrary files");
+            var yarn=R("yarn-rule",FileKind.YarnArchive,7);Expect(yarn.Accepts(Path.Combine(yarn.Path,"example.zip"),Old,DateTime.UtcNow) && !yarn.Accepts(Path.Combine(yarn.Path,"data.sqlite"),Old,DateTime.UtcNow),"Yarn rule preserves databases and sources");
+            Expect(new FileOutcome{Code=CleanCode.Busy}.NextStep.Contains("退出") && new FileOutcome{Code=CleanCode.Kept}.NextStep.Contains("保护"),"Cleanup failures explain recovery without treating protection as failure");
+            Expect(Shell.SpaceChange(100,90).Contains("减少") && Shell.SpaceChange(null,90).Contains("无法"),"Net disk changes never become fabricated cleanup savings");
+            var historyPath=Inside(@"planning\growth.xml");var history=new GrowthStore(historyPath);var now=DateTime.UtcNow;
+            history.Record("cache-one",Inside("cache-one"),"测试缓存",100,now);Expect(history.Records[0].ChangeText=="首次记录","First growth record is a baseline");history.Save();history=new GrowthStore(historyPath);
+            history.Record("cache-one",Inside("cache-one"),"测试缓存",250,now.AddMinutes(5));history.Save();history=new GrowthStore(historyPath);Expect(history.Records[0].Delta==150 && history.Records[0].Previous==now,"Growth survives restart and compares equal scopes");
+            history.Record("cache-one",Inside("cache-one"),"测试缓存",900,now);Expect(history.Records[0].Bytes==250,"Older observations cannot overwrite a newer growth baseline");
+            Put(@"transfer-source\hello.txt","important original",false);Directory.CreateDirectory(Inside(@"transfer-source\empty"));
+            var service=new TransferService(Inside(@"planning\transfer.xml"),box);var keep=new KeepSnapshot();Action<string> report=s=>{};var token=CancellationToken.None;
+            Refuses(()=>service.Inspect(Path.GetPathRoot(box),keep,token,report),"Drive roots cannot be migrated");
+            var protectedKeep=new KeepSnapshot();protectedKeep.Rules.Add(PreserveStore.Create(Inside("transfer-source"),true));Refuses(()=>service.Inspect(Inside("transfer-source"),protectedKeep,token,report),"Protected data cannot be moved by the wizard");
+            var job=service.Inspect(Inside("transfer-source"),keep,token,report);service.Copy(job,keep,token,report);
+            using(service.Acquire())Refuses(()=>service.Acquire(),"Only one migration operation can hold the record lock");
+            Expect(job.Phase=="已复制并校验" && File.Exists(Inside(@"transfer-source\hello.txt")) && Directory.Exists(Path.Combine(job.Destination,"empty")),"Copy verifies content, preserves empty folders and retains all original files");
+            string target=Path.Combine(job.Destination,"hello.txt");File.WriteAllText(target,"changed copy");Refuses(()=>service.Switch(job,keep,token,report),"A modified destination blocks path switching");Expect(Engine.CheckDirectory(job.Source)==Boundary.Clear,"Failed verification leaves original path intact");
+            File.WriteAllText(target,"important original");service.Switch(job,keep,token,report);job=service.Load();
+            Expect(job.Phase=="等待使用验证" && Engine.DirectoryResolvesTo(job.Source,job.Destination) && File.Exists(Path.Combine(job.Backup,"hello.txt")),"Restart restores pending user verification, not a false completed state");
+            using(var held=new FileStream(target,FileMode.Open,FileAccess.ReadWrite,FileShare.None))Refuses(()=>service.RemoveOriginal(job,keep,token,report),"An in-use copy blocks original removal");
+            File.WriteAllText(Path.Combine(job.Backup,"late.txt"),"new data");Refuses(()=>service.RemoveOriginal(job,keep,token,report),"New data in the original is never silently dropped");File.Delete(Path.Combine(job.Backup,"late.txt"));
+            service.RemoveOriginal(job,keep,token,report);Expect(job.Phase=="迁移完成" && !Directory.Exists(job.Backup) && File.ReadAllText(Path.Combine(job.Source,"hello.txt"))=="important original","Only verified originals are removed; original path still opens the D-style destination");
+            Put(@"transfer-restore\hello.txt","restore me",false);var restore=service.Inspect(Inside("transfer-restore"),keep,token,report);service.Copy(restore,keep,token,report);service.Switch(restore,keep,token,report);service.Restore(restore,token,report);
+            Expect(Engine.CheckDirectory(restore.Source)==Boundary.Clear && File.Exists(Path.Combine(restore.Source,"hello.txt")) && File.Exists(Path.Combine(restore.Destination,"hello.txt")),"Rollback restores the source while retaining the copy");
+            Put(@"transfer-interrupt\hello.txt","interrupted",false);var interrupted=service.Inspect(Inside("transfer-interrupt"),keep,token,report);service.Copy(interrupted,keep,token,report);interrupted.Phase="切换中";service.Save(interrupted);Directory.Move(interrupted.Source,interrupted.Backup);
+            interrupted=service.Load();Expect(interrupted.Phase=="已复制并校验" && File.Exists(Path.Combine(interrupted.Source,"hello.txt")),"An interrupted rename recovers the original path before continuing");
+            Directory.CreateDirectory(Inside("transfer-link"));Junction(Inside(@"transfer-link\outside"),Inside("decoy"));Refuses(()=>service.Inspect(Inside("transfer-link"),keep,token,report),"Migration never traverses nested junctions");
+            Put(@"transfer-cancel\hello.txt","retained",false);var cancelled=service.Inspect(Inside("transfer-cancel"),keep,token,report);var cts=new CancellationTokenSource();cts.Cancel();bool stopped=false;try{service.Copy(cancelled,keep,cts.Token,report);}catch(OperationCanceledException){stopped=true;}
+            Expect(stopped && File.Exists(Inside(@"transfer-cancel\hello.txt")),"Cancelled copying leaves original content intact");cts.Dispose();
+            Expect(service.Load().Phase=="复制未完成","Restart cannot present an interrupted copy as running or completed");
+            Put(@"transfer-changed\hello.txt","before",false);var changed=service.Inspect(Inside("transfer-changed"),keep,token,report);File.WriteAllText(Path.Combine(changed.Source,"hello.txt"),"modified after inspection");Refuses(()=>service.Copy(changed,keep,token,report),"Source identity and modification time are checked on the copy handle");
+            Directory.CreateDirectory(Inside("transfer-hardlink"));Expect(CreateHardLink(Inside(@"transfer-hardlink\shared.txt"),Inside(@"transfer-changed\hello.txt"),IntPtr.Zero),"Create a hard-linked fixture");Refuses(()=>service.Inspect(Inside("transfer-hardlink"),keep,token,report),"Hard links cannot silently become destructive migration originals");
+        }
         [STAThread]
         public static int Main(string[] args)
         {
@@ -997,7 +1057,7 @@ namespace DiskGuide
                 Directory.CreateDirectory(fresh);
                 box=fresh;
                 System.Windows.Media.RenderOptions.ProcessRenderMode=System.Windows.Interop.RenderMode.SoftwareOnly;
-                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyIcons(); VerifyHomeSuggestions(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
+                VerifyEngine(); VerifyPreserve(); VerifyScanWork(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifySpace(); VerifyIcons(); VerifyHomeSuggestions(); VerifyPlanningAndTransfer(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
             }
             catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
             finally {if(box!=null && Directory.Exists(box))DeleteFixture(box);}

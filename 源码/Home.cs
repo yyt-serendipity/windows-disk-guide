@@ -78,6 +78,7 @@ namespace DiskGuide
             var cleanButton=Get<Button>("HomeCleanBtn");
             cleanButton.Content=busy ? "正在检查" : !scanCompleted || !suggestion.HasChoices ? "重新扫描" : suggestion.Items>0 ? "查看可清理项目" : "查看其他清理项";
             cleanButton.IsEnabled=!busy && keep.Error==null;
+            if(planningReady)BindPlanning();
         }
     }
 }

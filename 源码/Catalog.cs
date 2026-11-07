@@ -98,6 +98,12 @@ namespace DiskGuide
                     }
                 }
             }
+            Add(rules,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),@"NVIDIA Corporation\NVIDIA App\UpdateFramework\ota-artifacts"),"NVIDIA 旧更新下载包",FileKind.DriverDownload,7,"只识别更新下载目录中满 7 天、名称符合 NVIDIA 安装包格式的文件。驱动本体及游戏缓存不在此规则内。","NVIDIA App","setup");
+            Add(rules,Path.Combine(local,@"Ollama\updates_v2"),"Ollama 旧更新安装包",FileKind.OllamaDownload,7,"只识别哈希目录中满 7 天的 OllamaSetup.exe，保留模型与配置。请先退出 Ollama。","ollama","OllamaSetup");
+            Add(rules,Path.Combine(local,@"Yarn\Berry\cache"),"Yarn 依赖缓存",FileKind.YarnArchive,7,"满 7 天的缓存 ZIP，重新构建可能需要联网下载。","node","yarn");
+            Add(rules,Path.Combine(local,@"npm-cache\_cacache\content-v2\sha512"),"npm 下载内容缓存",FileKind.NpmContent,7,"只识别 SHA-512 内容缓存块，不包含项目的 node_modules、源码或凭据。","node","npm");
+            Add(rules,Path.Combine(local,"electron"),"Electron 下载缓存",FileKind.ElectronArchive,7,"满 7 天、名称符合 Windows Electron 发行包格式的 ZIP。","node","electron");
+            Add(rules,Path.Combine(local,"go-build"),"Go 编译缓存",FileKind.GoBuild,7,"只清满 7 天、名称符合 Go 构建缓存格式的文件，保留 Go 源码。","go","gopls");
             return rules.Where(r => Engine.ReadyFixed(r.Path) && r.HasValidOrigin())
                 .Where(r => { var state = Engine.CheckDirectory(r.Path); return state == Boundary.Clear || state == Boundary.Inaccessible; })
                 .GroupBy(r => r.Path, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
@@ -274,7 +280,8 @@ namespace DiskGuide
             if (first == "windows" && rel.Equals(@"Windows\Installer",Engine.CI)) return Set(f,"系统保护","已安装软件修复、升级和卸载时使用的 Windows Installer 文件。");
             if (name.Equals("codex-runtimes",Engine.CI) && path.IndexOf(@"\.cache\",Engine.CI)>=0) return Set(f,"保留","Codex 使用的本机工具运行环境，里面可能有正在使用的程序和依赖。");
             if (name.Equals(".git",Engine.CI)) return Set(f,"保留","Git 历史、分支与仓库信息。");
-            if (name.Equals(".codex",Engine.CI) || name.Equals("archived_sessions",Engine.CI) ||
+            if(path.EndsWith(@"\OpenAI\Codex-old",Engine.CI))return Set(f,"需要判断","位于 Codex 安装区域的旧版目录候选。名称不代表已经停用；请先核对当前运行路径和软件登记，本工具不会自动删除程序本体。");
+            if(name.Equals(".codex",Engine.CI) || name.Equals("archived_sessions",Engine.CI) ||
                 path.IndexOf(@"\.codex\sessions",Engine.CI)>=0) return Set(f,"保留","Codex 可能在此存放会话、历史记录、设置或生成文件。");
             if (name.IndexOf("LCEDA",Engine.CI)>=0 || name.IndexOf("嘉立创",Engine.CI)>=0 || name.Equals("EasyEDA",Engine.CI)) return Set(f,"保留","EDA 工程、资源或历史版本，请在设计软件中管理。");
             if (name.Equals("ota-artifacts",Engine.CI) && path.IndexOf(@"\NVIDIA App\UpdateFramework\",Engine.CI)>=0)

@@ -16,7 +16,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.9.1.0")]
+[assembly: AssemblyVersion("1.10.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -87,6 +87,7 @@ namespace DiskGuide
             WireActivity();
             WireSpace();
             WireHome();
+            WirePlanning();
             Get<Button>("ScanTasksBtn").Click+=delegate{
                 if(ranking!=null)tabs.SelectedItem=Get<TabItem>("RankingTab");
                 else if(measuring!=null || browsing!=null)tabs.SelectedItem=folderTab;
@@ -296,6 +297,7 @@ namespace DiskGuide
             {
                 if (delete)
                 {
+                    long? beforeFree=ReadFree(scope);
                     lastCleanup.Clear();Get<Button>("ResultsBtn").IsEnabled=false;
                     var result = await ScanWork.Run(() => {
                         KeepLease lease;
@@ -308,6 +310,7 @@ namespace DiskGuide
                     foreach (var item in result) outcomes[item.Key] = "  上次" + item.Value.Text;
                     var total = new Outcome { Removed = result.Values.Sum(v => v.Removed), Bytes = result.Values.Sum(v => v.Bytes), Skipped = result.Values.Sum(v => v.Skipped), Preserved=result.Values.Sum(v=>v.Preserved) };
                     final = "本次" + total.Text;
+                    lastSpaceChange=SpaceChange(beforeFree,ReadFree(scope));
                     activityOutcome=final;activityFailed=total.Skipped>0;
                     Activity("cleanup",final+" · 正在更新清单…");
                     Status(final + " 正在更新清单…");
@@ -321,6 +324,7 @@ namespace DiskGuide
                 rules = snapshot.Item1;
                 rows = snapshot.Item2;
                 scanCompleted=true;
+                RecordCacheGrowth();
                 foreach (var row in rows)
                 {
                     foreach (var file in row.Files) file.Included = !excluded.Contains(file.Identity);

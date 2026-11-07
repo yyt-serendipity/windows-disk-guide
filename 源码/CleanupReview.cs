@@ -70,7 +70,7 @@ namespace DiskGuide
             if(lastCleanup.Count==0)return;
             var dialog=DetailWindow("最近一次缓存清理结果",1040,680);var body=new Grid{Margin=new Thickness(20)};
             foreach(var h in new[]{GridLength.Auto,GridLength.Auto,new GridLength(1,GridUnitType.Star),GridLength.Auto,GridLength.Auto})body.RowDefinitions.Add(new RowDefinition{Height=h});
-            var heading=new StackPanel();heading.Children.Add(new TextBlock{Text="每个文件，都有处理结果",FontSize=22,FontWeight=FontWeights.SemiBold});
+            var heading=new StackPanel();heading.Children.Add(new TextBlock{Text=CleanupSummary(),FontSize=20,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap});
             heading.Children.Add(new TextBlock{Text=lastCleanupTime.ToString("yyyy-MM-dd HH:mm:ss")+" · 已删除 "+lastCleanup.Count(x=>x.Code==CleanCode.Deleted)+" 个 · 仅记录本次启动最近一次缓存清理",Style=(Style)View.FindResource("Muted"),Margin=new Thickness(0,7,0,16),TextWrapping=TextWrapping.Wrap});body.Children.Add(heading);
             var toolbar=new DockPanel{Margin=new Thickness(0,0,0,10)};var filter=new ComboBox{Width=140,SelectedIndex=0,VerticalContentAlignment=VerticalAlignment.Center,Margin=new Thickness(10,0,0,0)};
             foreach(var text in new[]{"全部结果","未完成 / 已跳过","已删除","已保留"})filter.Items.Add(text);DockPanel.SetDock(filter,Dock.Right);toolbar.Children.Add(filter);
@@ -89,7 +89,7 @@ namespace DiskGuide
                     (filter.SelectedIndex==0 || filter.SelectedIndex==1 && x.Code!=CleanCode.Deleted && x.Code!=CleanCode.Kept && x.Code!=CleanCode.Excluded || filter.SelectedIndex==2 && x.Code==CleanCode.Deleted || filter.SelectedIndex==3 && (x.Code==CleanCode.Kept || x.Code==CleanCode.Excluded))).ToList();
                 grid.ItemsSource=entries;grid.SelectedItem=entries.FirstOrDefault();empty.Visibility=entries.Count==0?Visibility.Visible:Visibility.Collapsed;count.Text=entries.Count+" / "+lastCleanup.Count+" 个结果 · 关闭程序后不保留此明细";
             };
-            grid.SelectionChanged+=delegate{var item=grid.SelectedItem as FileOutcome;open.IsEnabled=item!=null;detail.Text=item==null?"没有匹配的结果。":item.Project+" · "+item.Status+"\n"+item.PathText+"\n"+item.Reason;};
+            grid.SelectionChanged+=delegate{var item=grid.SelectedItem as FileOutcome;open.IsEnabled=item!=null;detail.Text=item==null?"没有匹配的结果。":item.Project+" · "+item.Status+"\n"+item.NextStep+"\n"+item.PathText+"\n"+item.Reason;};
             open.Click+=delegate{var item=grid.SelectedItem as FileOutcome;if(item!=null)OpenLocation(Path.GetDirectoryName(item.PathText),false);};
             search.TextChanged+=delegate{bind();};filter.SelectionChanged+=delegate{bind();};dialog.Content=new Border{Background=View.Background,Child=body};bind();dialog.ShowDialog();
         }
