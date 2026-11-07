@@ -41,7 +41,8 @@ namespace DiskGuide
                 Width = width < 0 ? new DataGridLength(-width,DataGridLengthUnitType.Star) : new DataGridLength(width),
                 SortMemberPath = sort ?? binding, ElementStyle = new Style(typeof(TextBlock)) {
                     Setters = { new Setter(TextBlock.MarginProperty,new Thickness(8,0,8,0)), new Setter(TextBlock.VerticalAlignmentProperty,VerticalAlignment.Center),
-                        new Setter(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis), new Setter(TextBlock.ToolTipProperty,new Binding(binding)) }
+                        new Setter(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis), new Setter(TextBlock.ToolTipProperty,new Binding(binding)),
+                        new Setter(TextBlock.TextAlignmentProperty,binding=="SizeText"?TextAlignment.Right:TextAlignment.Left) }
                 } };
         }
         internal static void ApplyChoices(IEnumerable<FileChoice> choices)

@@ -330,6 +330,7 @@ namespace DiskGuide
                 C<RadioButton>(w,fixtureDrive).IsChecked=true;
             }
             Expect(button.IsEnabled,"One-click enabled for selected files");
+            Expect(C<TabControl>(w,"Tabs").TabStripPlacement==Dock.Left,"Wide window uses vertical navigation");
             var policyCombo=C<ComboBox>(w,"PolicyBox");policyCombo.ApplyTemplate();
             var comboPeer=new ComboBoxAutomationPeer(policyCombo);
             var comboAutomation=(IExpandCollapseProvider)comboPeer.GetPattern(PatternInterface.ExpandCollapse);
@@ -425,6 +426,7 @@ namespace DiskGuide
             w.Width=810;w.Height=580;w.UpdateLayout();
             Pump(()=>w.ActualWidth<=811 && list.ActualHeight>=220 && list.Columns[0].ActualWidth>list.ActualWidth*0.48 && list.Columns[1].ActualWidth>=82,"Compact table keeps folder and policy labels readable");
             Expect(Grid.GetColumn(C<Border>(w,"DetailPane"))==2,"Short window keeps room for list rows");
+            Expect(C<TabControl>(w,"Tabs").TabStripPlacement==Dock.Top && C<TextBlock>(w,"LocationText").Text==box,"Compact navigation preserves the current directory");
             VerifyManagementUi(fixture, preview);
             VerifySpaceUi(fixture, preview);
             VerifyKeepUi(fixture,uiStore,preview);

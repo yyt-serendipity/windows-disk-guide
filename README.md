@@ -4,9 +4,9 @@
 
 v1.5 增加逐文件清理结果、跨会话永久保留规则，以及大型扫描任务的排队和取消。五个页面分别用于浏览目录、查找大文件、清理缓存、盘点启动来源和管理软件。启动项和软件按本机范围显示，不受 C/D 盘选择限制。
 
-v1.5.1 统一导航图标、筛选框、复选框和表格样式，强化选中与键盘焦点反馈，补充保留规则与清理结果的空状态提示，并调整小窗口的空间分配。
+v1.5.2 调整页面布局：宽窗口使用左侧功能导航，窄窗口自动切回顶部导航；目录与清理页增加标题区，路径栏和容量列更易辨认。切换布局保留当前目录、筛选和勾选状态。
 
-**下载**　到 [GitHub 发布页](https://github.com/yyt-serendipity/windows-disk-guide/releases/latest) 下载 `DiskGuide-1.5.1-windows.zip`，解压后双击 `磁盘清理助手.exe`。把同包的 `README.md` 和程序放在一起，可从窗口右下角「使用说明」离线阅读。
+**下载**　到 [GitHub 发布页](https://github.com/yyt-serendipity/windows-disk-guide/releases/latest) 下载 `DiskGuide-1.5.2-windows.zip`，解压后双击 `磁盘清理助手.exe`。把同包的 `README.md` 和程序放在一起，可从窗口右下角「使用说明」离线阅读。
 
 ## 我的电脑能用吗？
 
@@ -153,7 +153,7 @@ v1.5.1 统一导航图标、筛选框、复选框和表格样式，强化选中�
 
 ## 具体怎样实现？
 
-模块链接对应仓库中的源码。阅读离线压缩包时，可在 [GitHub 的 v1.5.1 源码目录](https://github.com/yyt-serendipity/windows-disk-guide/tree/v1.5.1/源码) 中查看同一版本。
+模块链接对应仓库中的源码。阅读离线压缩包时，可在 [GitHub 的 v1.5.2 源码目录](https://github.com/yyt-serendipity/windows-disk-guide/tree/v1.5.2/源码) 中查看同一版本。
 
 | 模块 | 工作方式 |
 |---|---|
@@ -190,7 +190,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\Release.ps1"
 `-ExecutionPolicy Bypass` 只应用于这次启动的 PowerShell 进程。发布产物在 `dist` 中。可将下载文件的 SHA-256 与同一发布页的 `SHA256SUMS.txt` 对照，检查传输完整性。
 
 ```powershell
-Get-FileHash ".\DiskGuide-1.5.1-windows.zip" -Algorithm SHA256
+Get-FileHash ".\DiskGuide-1.5.2-windows.zip" -Algorithm SHA256
 ```
 
 发布包使用普通 Windows 桌面可执行文件，目前没有 Authenticode 代码签名。请从本仓库的 Releases 下载并核对校验值。维护者向 main 推送或提交拉取请求时，GitHub Actions 会在 Windows runner 上执行构建、测试和打包。CI 通过只说明该环境中的检查通过，其他 Windows 版本仍需分别验证。

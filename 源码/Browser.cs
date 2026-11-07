@@ -92,6 +92,17 @@ namespace DiskGuide
             var layout=Get<Grid>("AppLayout");
             layout.RowDefinitions[0].Height=new GridLength(height<680?68:80);
             layout.RowDefinitions[2].Height=new GridLength(height<680?32:38);
+            bool rail=width>=1100;
+            string navigation=rail?"Rail":"Top";
+            if(!Object.Equals(tabs.Tag,navigation))
+            {
+                tabs.Tag=navigation;tabs.TabStripPlacement=rail?Dock.Left:Dock.Top;
+                tabs.Template=(ControlTemplate)View.FindResource(rail?"SidebarTabs":"TopTabs");
+            }
+            tabs.Margin=new Thickness(20,rail?20:9,20,12);
+            Get<DockPanel>("FolderHeading").Visibility=rail && height>=680?Visibility.Visible:Visibility.Collapsed;
+            Get<DockPanel>("CleanupHeading").Visibility=rail && height>=680?Visibility.Visible:Visibility.Collapsed;
+            width-=rail?156:0;
             bool narrow = width < 990;
             compact = narrow && height >= 685;
             var body = Get<Grid>("FolderLayout");

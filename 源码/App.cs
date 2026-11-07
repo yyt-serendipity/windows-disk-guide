@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.5.1.0")]
+[assembly: AssemblyVersion("1.5.2.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
