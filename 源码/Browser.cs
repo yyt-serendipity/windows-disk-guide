@@ -28,6 +28,7 @@ namespace DiskGuide
         private bool dirty = true, changing, compact;
         private int folderErrors;
         private string progressText = "";
+        internal Func<string,CancellationToken,Action<long,long>,FolderUsage> FolderReader=FolderUsage.Read;
 
         private void WireBrowser()
         {
@@ -92,14 +93,17 @@ namespace DiskGuide
             var layout=Get<Grid>("AppLayout");
             layout.RowDefinitions[0].Height=new GridLength(height<680?68:80);
             layout.RowDefinitions[2].Height=new GridLength(height<680?32:38);
-            bool rail=width>=1100;
+            bool rail=width>=1100 && height>=680;
             string navigation=rail?"Rail":"Top";
             if(!Object.Equals(tabs.Tag,navigation))
             {
                 tabs.Tag=navigation;tabs.TabStripPlacement=rail?Dock.Left:Dock.Top;
                 tabs.Template=(ControlTemplate)View.FindResource(rail?"SidebarTabs":"TopTabs");
             }
-            tabs.Margin=new Thickness(20,rail?20:9,20,12);
+            layout.ColumnDefinitions[0].Width=new GridLength(rail?116:0);
+            Get<Border>("SideBackdrop").Visibility=rail?Visibility.Visible:Visibility.Collapsed;
+            Get<Image>("HeaderIcon").Visibility=rail?Visibility.Collapsed:Visibility.Visible;
+            tabs.Margin=rail?new Thickness(0):new Thickness(20,9,20,12);
             Get<DockPanel>("FolderHeading").Visibility=rail && height>=680?Visibility.Visible:Visibility.Collapsed;
             Get<DockPanel>("CleanupHeading").Visibility=rail && height>=680?Visibility.Visible:Visibility.Collapsed;
             width-=rail?156:0;
@@ -142,14 +146,17 @@ namespace DiskGuide
             StopBrowser();
             if (OnFolders && !busy) ReloadFolders(null);
         }
-        private void RefreshBrowser()
+        private void RefreshBrowser(bool invalidate=true)
         {
-            sizes.Clear(); usage.Clear(); dirty = true;
-            if (OnFolders) ReloadFolders(inspected == null ? null : inspected.PathText);
+            if(invalidate){sizes.Clear();usage.Clear();}dirty = true;
+            foreach(var f in folders)Prepare(f);
+            if(current!=null)Prepare(current);
+            if (OnFolders && measuring==null && browsing==null) ReloadFolders(inspected == null ? null : inspected.PathText);
         }
         private void ShowBrowser()
         {
             if (busy || lifetime.IsCancellationRequested) return;
+            if(measuring!=null || browsing!=null){RenderDetail();return;}
             if (dirty) ReloadFolders(inspected == null ? null : inspected.PathText);
             else Inspect(SelectedFolder());
         }
@@ -157,11 +164,13 @@ namespace DiskGuide
         {
             if (measuring != null) { measuring.Cancel(); measuring = null; }
             progressText = "";
+            UpdateScanActivity();
         }
         private void StopBrowser()
         {
             StopSize();
             if (browsing != null) { browsing.Cancel(); browsing = null; dirty = true; }
+            UpdateScanActivity();
         }
         private Folder SelectedFolder()
         {
@@ -195,6 +204,7 @@ namespace DiskGuide
             using (var cts = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token))
             {
                 browsing = cts;
+                UpdateScanActivity();
                 try
                 {
                     var result = await Task.Run(() => {
@@ -202,7 +212,7 @@ namespace DiskGuide
                         var entries = Catalog.Children(path, drives, rulesNow, out errors, cts.Token);
                         return Tuple.Create(entries, errors);
                     });
-                    if (cts.IsCancellationRequested || !OnFolders) return;
+                    if (cts.IsCancellationRequested) return;
                     if (current != null) Prepare(current);
                     folders = result.Item1;
                     folderErrors = result.Item2;
@@ -224,7 +234,7 @@ namespace DiskGuide
                         Get<StackPanel>("FolderEmpty").Visibility = Visibility.Visible;
                     }
                 }
-                finally { if (browsing == cts) browsing = null; }
+                finally { if (browsing == cts) browsing = null;UpdateScanActivity(); }
             }
         }
         private bool Included(Folder f)
@@ -363,6 +373,7 @@ namespace DiskGuide
             using (var cts = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token))
             {
                 measuring = cts;
+                UpdateScanActivity();
                 progressText = "正在统计选中的目录…";
                 RenderDetail();
                 try
@@ -373,7 +384,7 @@ namespace DiskGuide
                         progressText = "已读 " + Engine.Size(v.Item1) + " · " + v.Item2.ToString("N0") + " 个文件";
                         Label("MeasureNote", progressText);
                     });
-                    var report = await ScanWork.Run(() => FolderUsage.Read(f.PathText, cts.Token,
+                    var report = await ScanWork.Run(() => FolderReader(f.PathText, cts.Token,
                         (bytes, files) => reporter.Report(Tuple.Create(bytes, files))), cts.Token);
                     if (cts.IsCancellationRequested || !ReferenceEquals(f, inspected)) return;
                     usage[f.PathText] = report;
@@ -393,6 +404,7 @@ namespace DiskGuide
                 finally
                 {
                     if (measuring == cts) { measuring = null; if (!lifetime.IsCancellationRequested) RenderDetail(); }
+                    UpdateScanActivity();
                 }
             }
         }

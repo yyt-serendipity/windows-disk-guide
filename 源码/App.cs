@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.5.2.0")]
+[assembly: AssemblyVersion("1.6.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -76,6 +76,11 @@ namespace DiskGuide
             WireBrowser();
             WireManagement();
             WireSpace();
+            Get<Button>("ScanTasksBtn").Click+=delegate{
+                if(ranking!=null)tabs.SelectedItem=Get<TabItem>("RankingTab");
+                else if(measuring!=null || browsing!=null)tabs.SelectedItem=folderTab;
+                else if(busy)tabs.SelectedItem=cleanupTab;
+            };
             Get<Button>("KeepRulesBtn").Click+=delegate{ShowKeepRules();};
             Get<Button>("ResultsBtn").Click+=delegate{ShowCleanupResults();};
             Get<Button>("KeepFolderBtn").Click+=delegate{if(inspected!=null && !busy)SaveKeep(inspected.PathText,true);};
@@ -98,11 +103,9 @@ namespace DiskGuide
             tabs.SelectionChanged += delegate(object sender, SelectionChangedEventArgs e) {
                 if (e.Source != tabs) return;
                 UpdateNavigation();
-                if (!OnRanking) StopRanking();
                 if (OnFolders) ShowBrowser();
                 else
                 {
-                    StopBrowser();
                     View.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, (Action)FitCleanColumns);
                 }
             };
@@ -111,6 +114,18 @@ namespace DiskGuide
         }
 
         private bool OnFolders { get { return tabs.SelectedItem == folderTab; } }
+        private void UpdateScanActivity()
+        {
+            if(lifetime.IsCancellationRequested)return;
+            var active=new List<string>();
+            if(ranking!=null)active.Add("空间排行");
+            if(measuring!=null || browsing!=null)active.Add("目录统计");
+            if(busy)active.Add("缓存处理");
+            var taskButton=Get<Button>("ScanTasksBtn");
+            taskButton.Content="扫描任务 · "+active.Count;
+            taskButton.Visibility=active.Count==0?Visibility.Collapsed:Visibility.Visible;
+            taskButton.ToolTip=String.Join("、",active)+"正在运行或排队。切换页面不会中断；点击返回任务页面。";
+        }
         private void OpenGuide()
         {
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "README.md");
@@ -241,13 +256,15 @@ namespace DiskGuide
         private async Task Refresh(bool delete)
         {
             if (busy) return;
+            bool refreshFolderSizes=delete || OnFolders;
             keep=preserveStore.Load();ApplyKeepFlags();
             var chosen = rows.Where(r => InScope(r) && r.CanPick && r.Pick && r.SelectedCount > 0).ToList();
             if (delete && (chosen.Count == 0 || keep.Error!=null)) { if(keep.Error!=null)Status(keep.Error);return; }
             var previous = rows.Where(r => r.CanPick).ToDictionary(r => r.Rule.Path, r => r.Pick, StringComparer.OrdinalIgnoreCase);
             var excluded = new HashSet<string>(rows.SelectMany(r => r.Files).Where(f => !f.Included).Select(f => f.Identity), StringComparer.OrdinalIgnoreCase);
             busy = true;
-            StopBrowser();
+            if(OnFolders || delete)StopBrowser();
+            UpdateScanActivity();
             cleanGrid.IsEnabled = false;
             cleanFilter.IsEnabled = false;
             Get<Button>("ClearScopeBtn").IsEnabled = false;
@@ -304,6 +321,7 @@ namespace DiskGuide
             finally
             {
                 busy = false;
+                UpdateScanActivity();
                 if (!lifetime.IsCancellationRequested)
                 {
                     cleanGrid.IsEnabled = true;
@@ -313,7 +331,7 @@ namespace DiskGuide
                     Get<Button>("KeepRulesBtn").IsEnabled=true;
                     ShowDrives();
                     BindClean();
-                    RefreshBrowser();
+                    RefreshBrowser(refreshFolderSizes);
                 }
             }
         }

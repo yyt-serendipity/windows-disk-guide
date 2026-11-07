@@ -331,7 +331,9 @@ namespace DiskGuide
                 C<RadioButton>(w,fixtureDrive).IsChecked=true;
             }
             Expect(button.IsEnabled,"One-click enabled for selected files");
-            Expect(C<TabControl>(w,"Tabs").TabStripPlacement==(w.ActualWidth>=1100?Dock.Left:Dock.Top),"Navigation matches allocated window width: "+w.ActualWidth);
+            Expect(C<TabControl>(w,"Tabs").TabStripPlacement==(w.ActualWidth>=1100 && w.ActualHeight>=680?Dock.Left:Dock.Top),"Navigation matches allocated window dimensions: "+w.ActualWidth+" x "+w.ActualHeight);
+            var selectedTab=C<TabItem>(w,"FoldersTab");var otherTab=C<TabItem>(w,"RankingTab");selectedTab.ApplyTemplate();otherTab.ApplyTemplate();
+            Expect(((Border)selectedTab.Template.FindName("tabLine",selectedTab)).Background.ToString()!=(((Border)otherTab.Template.FindName("tabLine",otherTab)).Background??Brushes.Transparent).ToString(),"Navigation visibly identifies the selected module");
             var policyCombo=C<ComboBox>(w,"PolicyBox");policyCombo.ApplyTemplate();
             var comboPeer=new ComboBoxAutomationPeer(policyCombo);
             var comboAutomation=(IExpandCollapseProvider)comboPeer.GetPattern(PatternInterface.ExpandCollapse);
@@ -430,6 +432,7 @@ namespace DiskGuide
             Expect(C<TabControl>(w,"Tabs").TabStripPlacement==Dock.Top && C<TextBlock>(w,"LocationText").Text==box,"Compact navigation preserves the current directory");
             VerifyManagementUi(fixture, preview);
             VerifySpaceUi(fixture, preview);
+            VerifyBackgroundScans(fixture,preview);
             VerifyKeepUi(fixture,uiStore,preview);
             w.Close();
 
@@ -535,6 +538,76 @@ namespace DiskGuide
             };
             timer.Start();try{launch();}finally{timer.Stop();}
             if(failure!=null)throw failure;Expect(seen,"Requested detail window opens");
+        }
+        private static void VerifyBackgroundScans(Shell shell,string preview)
+        {
+            var w=shell.View;var tabs=C<TabControl>(w,"Tabs");
+            string folder=Inside("background-scan");Put(@"background-scan\sample.bin","12345678",false);
+            using(var started=new ManualResetEventSlim())using(var release=new ManualResetEventSlim())
+            {
+                CancellationToken active=CancellationToken.None;int calls=0;
+                shell.FolderReader=(path,token,progress)=>{
+                    if(String.Equals(path,folder,Engine.CI)){Interlocked.Increment(ref calls);active=token;started.Set();release.Wait(token);}
+                    return FolderUsage.Read(path,token,progress);
+                };
+                try
+                {
+                    tabs.SelectedItem=C<TabItem>(w,"FoldersTab");C<Button>(w,"HomeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));SelectPath(w,folder);
+                    Pump(()=>started.IsSet,"Directory scan enters worker");
+                    tabs.SelectedItem=C<TabItem>(w,"CleanupTab");
+                    Expect(!active.IsCancellationRequested && C<Button>(w,"ScanTasksBtn").IsVisible,"Directory scan remains active on another page");
+                    C<Button>(w,"ScanTasksBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Expect(tabs.SelectedItem==C<TabItem>(w,"FoldersTab") && !active.IsCancellationRequested && calls==1,"Returning to directory scan does not restart it");
+                    tabs.SelectedItem=C<TabItem>(w,"CleanupTab");
+                    C<Button>(w,"RefreshBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Expect(!active.IsCancellationRequested,"Starting a cache scan does not cancel background directory work");
+                    if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"background-tasks.png");
+                    release.Set();Pump(()=>C<Button>(w,"RefreshBtn").IsEnabled,"Queued cache scan finishes after folder scan");
+                    tabs.SelectedItem=C<TabItem>(w,"FoldersTab");
+                    Pump(()=>C<TextBlock>(w,"FolderSizeValue").Text=="8 B","Completed background directory result restored");
+                    Expect(calls==1,"Completed directory result retained after another page scan");
+                }
+                finally{release.Set();shell.FolderReader=FolderUsage.Read;}
+            }
+            using(var started=new ManualResetEventSlim())using(var release=new ManualResetEventSlim())
+            {
+                CancellationToken active=CancellationToken.None;int calls=0;
+                shell.RankingReader=(path,token,progress)=>{Interlocked.Increment(ref calls);active=token;started.Set();release.Wait(token);return FolderUsage.ReadRanking(path,token,progress);};
+                try
+                {
+                    C<Button>(w,"FolderRankBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(()=>started.IsSet,"Ranking scan enters worker");
+                    tabs.SelectedItem=C<TabItem>(w,"SoftwareTab");
+                    Expect(!active.IsCancellationRequested,"Switching pages does not cancel running ranking");
+                    C<Button>(w,"ScanTasksBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Expect(tabs.SelectedItem==C<TabItem>(w,"RankingTab") && calls==1 && !active.IsCancellationRequested,"Task shortcut returns to original running ranking");
+                    tabs.SelectedItem=C<TabItem>(w,"StartupTab");release.Set();
+                    Pump(()=>C<TextBlock>(w,"RankNotice").Text.StartsWith("已读"),"Ranking completes while hidden");
+                    tabs.SelectedItem=C<TabItem>(w,"RankingTab");
+                    Expect(C<TextBlock>(w,"RankTotal").Text=="8 B" && calls==1,"Returning shows completed result without restarting");
+                    started.Reset();release.Reset();C<Button>(w,"RankScanBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(()=>started.IsSet,"Ranking restart enters worker");
+                    C<Button>(w,"RankScanBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Expect(active.IsCancellationRequested,"Explicit cancel still stops ranking");Pump(()=>C<TextBlock>(w,"RankTotal").Text=="已取消","Cancelled ranking settles");
+                    started.Reset();C<Button>(w,"RankScanBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump(()=>started.IsSet,"Ranking starts before scope change");
+                    C<Button>(w,"RankRootBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Expect(active.IsCancellationRequested && C<TextBlock>(w,"RankTotal").Text=="尚未统计","Explicit range change cancels old work and clears its result");
+                }
+                finally{release.Set();shell.RankingReader=FolderUsage.ReadRanking;}
+            }
+            using(var entered=new ManualResetEventSlim())using(var release=new ManualResetEventSlim())
+            {
+                tabs.SelectedItem=C<TabItem>(w,"FoldersTab");
+                var blocker=ScanWork.Run(()=>{entered.Set();release.Wait();return true;},CancellationToken.None);
+                try
+                {
+                    Pump(()=>entered.IsSet,"Queue fixture takes scan slot");
+                    C<Button>(w,"FolderRankBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    tabs.SelectedItem=C<TabItem>(w,"SoftwareTab");Pump(()=>true,"Process navigation events");
+                    Expect(Object.Equals(C<Button>(w,"RankScanBtn").Content,"取消统计"),"Queued ranking survives page navigation");
+                    release.Set();Pump(()=>C<TextBlock>(w,"RankNotice").Text.StartsWith("已读"),"Queued ranking finishes in background");
+                    Expect(C<TextBlock>(w,"RankTotal").Text=="8 B","Queued scan retains the requested directory");
+                }
+                finally{release.Set();blocker.GetAwaiter().GetResult();}
+            }
         }
         private static void VerifySpaceUi(Shell shell,string preview)
         {

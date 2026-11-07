@@ -14,6 +14,7 @@ namespace DiskGuide
         private CancellationTokenSource ranking;
         private string rankingPath;
         private FolderUsage ranked;
+        internal Func<string,CancellationToken,Action<long,long>,FolderUsage> RankingReader=FolderUsage.ReadRanking;
         private bool OnRanking { get { return tabs.SelectedItem == Get<TabItem>("RankingTab"); } }
         private void WireSpace()
         {
@@ -36,6 +37,8 @@ namespace DiskGuide
             };
             Get<Button>("FolderRankBtn").Click += async delegate {
                 if(inspected==null || inspected.IsLink || busy)return;
+                if(ranking!=null && String.Equals(rankingPath,inspected.PathText,Engine.CI)){tabs.SelectedItem=Get<TabItem>("RankingTab");return;}
+                if(ranking!=null){StopRanking();ranking=null;}
                 rankingPath=inspected.PathText; tabs.SelectedItem=Get<TabItem>("RankingTab"); await ScanRanking();
             };
             Get<Button>("SoftwareSpaceBtn").Click += delegate { ShowAppSpace(); };
@@ -54,6 +57,7 @@ namespace DiskGuide
         private void ResetRanking()
         {
             StopRanking(); ranking=null; ranked=null;rankingPath=scope+@"\";
+            UpdateScanActivity();
             Get<TextBox>("RankSearch").Clear();Get<ComboBox>("RankKind").SelectedIndex=0;
             Label("RankPath",rankingPath);Label("RankTotal","尚未统计");
             Label("RankNotice","点击开始统计。扫描只读取当前磁盘，随时可以取消。");
@@ -65,6 +69,7 @@ namespace DiskGuide
             if(ranking!=null){ranking.Cancel();return;}
             string path=rankingPath;
             var cts=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);ranking=cts;ranked=null;
+            UpdateScanActivity();
             Label("RankPath",path);Label("RankTotal","统计中…");Label("RankNotice","正在读取文件长度，链接及无法访问的位置会跳过。");
             Get<Button>("RankScanBtn").Content="取消统计";BindRanking();
             var progress=new Progress<Tuple<long,long>>(value=> {
@@ -73,7 +78,7 @@ namespace DiskGuide
             });
             try
             {
-                var result=await ScanWork.Run(()=>FolderUsage.ReadRanking(path,cts.Token,(bytes,files)=>((IProgress<Tuple<long,long>>)progress).Report(Tuple.Create(bytes,files))),cts.Token);
+                var result=await ScanWork.Run(()=>RankingReader(path,cts.Token,(bytes,files)=>((IProgress<Tuple<long,long>>)progress).Report(Tuple.Create(bytes,files))),cts.Token);
                 if(ranking!=cts || cts.IsCancellationRequested)return;
                 ranked=result;Label("RankTotal",result.Total.SizeText);
                 Label("RankNotice","已读 "+result.Total.Files.ToString("N0")+" 个文件 · 跳过 "+result.Total.Skipped+" 处 · "+DateTime.Now.ToString("HH:mm:ss")+" · 文件长度合计，不是可释放空间");
@@ -84,6 +89,7 @@ namespace DiskGuide
             {
                 if(ranking==cts){ranking=null;if(!lifetime.IsCancellationRequested){Get<Button>("RankScanBtn").Content="重新统计";BindRanking();}}
                 cts.Dispose();
+                UpdateScanActivity();
             }
         }
         private void BindRanking()

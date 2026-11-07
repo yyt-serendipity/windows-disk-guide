@@ -92,14 +92,14 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style x:Key="DriveOption" TargetType="RadioButton">
-      <Setter Property="Foreground" Value="#F1F6FF"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Foreground" Value="#2D507A"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Margin" Value="0,0,6,0"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
         <Border x:Name="box" CornerRadius="6" Padding="11,6" BorderThickness="1" BorderBrush="Transparent" Background="Transparent">
           <ContentPresenter VerticalAlignment="Center"/>
         </Border><ControlTemplate.Triggers>
-          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="box" Property="Background" Value="#2B4363"/></Trigger>
-          <Trigger Property="IsChecked" Value="True"><Setter TargetName="box" Property="Background" Value="#314E73"/><Setter TargetName="box" Property="BorderBrush" Value="#6A8EBB"/></Trigger>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="box" Property="Background" Value="#F0F5FC"/></Trigger>
+          <Trigger Property="IsChecked" Value="True"><Setter TargetName="box" Property="Background" Value="#EAF2FF"/><Setter TargetName="box" Property="BorderBrush" Value="#B8CDED"/></Trigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="box" Property="BorderBrush" Value="#A8DCCF"/></Trigger>
           <Trigger Property="IsEnabled" Value="False"><Setter TargetName="box" Property="Opacity" Value="0.5"/></Trigger>
         </ControlTemplate.Triggers>
@@ -108,7 +108,7 @@
     <Style TargetType="ProgressBar" x:Key="Meter">
       <Setter Property="Height" Value="5"/><Setter Property="Margin" Value="0,4,0,0"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ProgressBar">
-        <Grid x:Name="PART_Track"><Border CornerRadius="2" Background="#4C6583"/>
+        <Grid x:Name="PART_Track"><Border CornerRadius="2" Background="#DEE7F4"/>
           <Border x:Name="PART_Indicator" CornerRadius="2" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}"/>
         </Grid>
       </ControlTemplate></Setter.Value></Setter>
@@ -117,16 +117,22 @@
       <Setter Property="Foreground" Value="#54677F"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
         <Border x:Name="tabLine" BorderThickness="0,0,0,2" BorderBrush="Transparent" Margin="0,0,8,0" Padding="12,11,12,12" CornerRadius="5,5,0,0">
-          <StackPanel Orientation="Horizontal"><Path Data="{Binding Tag,RelativeSource={RelativeSource TemplatedParent}}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineJoin="Round" Stretch="Uniform" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+          <StackPanel x:Name="navContent" Orientation="Horizontal"><Path x:Name="navIcon" Data="{Binding Tag,RelativeSource={RelativeSource TemplatedParent}}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineJoin="Round" Stretch="Uniform" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
             <ContentPresenter ContentSource="Header" TextBlock.FontSize="14" TextBlock.FontWeight="SemiBold"/></StackPanel>
         </Border><ControlTemplate.Triggers>
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="tabLine" Property="Background" Value="{StaticResource HoverBrush}"/></Trigger>
           <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="#294EAC"/><Setter TargetName="tabLine" Property="BorderBrush" Value="#345BC1"/><Setter TargetName="tabLine" Property="Background" Value="{StaticResource SelectionBrush}"/></Trigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="tabLine" Property="Background" Value="#E0EAFB"/></Trigger>
           <DataTrigger Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail">
-            <Setter TargetName="tabLine" Property="Margin" Value="0,0,0,8"/><Setter TargetName="tabLine" Property="Padding" Value="14,13"/>
-            <Setter TargetName="tabLine" Property="CornerRadius" Value="6"/><Setter TargetName="tabLine" Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#C7D8F2"/><Setter TargetName="tabLine" Property="Background" Value="Transparent"/>
+            <Setter TargetName="tabLine" Property="Margin" Value="0,0,0,8"/><Setter TargetName="tabLine" Property="Padding" Value="8,15"/>
+            <Setter TargetName="tabLine" Property="CornerRadius" Value="6"/><Setter TargetName="tabLine" Property="BorderThickness" Value="0"/>
+            <Setter TargetName="navContent" Property="Orientation" Value="Vertical"/><Setter TargetName="navContent" Property="HorizontalAlignment" Value="Center"/>
+            <Setter TargetName="navIcon" Property="Width" Value="23"/><Setter TargetName="navIcon" Property="Height" Value="23"/><Setter TargetName="navIcon" Property="Margin" Value="0,0,0,8"/>
           </DataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsMouseOver,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="tabLine" Property="Background" Value="#244C7F"/></MultiDataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsSelected,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Foreground" Value="White"/><Setter TargetName="tabLine" Property="Background" Value="#2864CC"/></MultiDataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsKeyboardFocused,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="tabLine" Property="BorderThickness" Value="1"/><Setter TargetName="tabLine" Property="BorderBrush" Value="#B7D4FF"/></MultiDataTrigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
@@ -200,43 +206,44 @@
       <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent" Margin="0,12,0,0"/>
     </Grid></ControlTemplate>
     <ControlTemplate x:Key="SidebarTabs" TargetType="TabControl"><Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="156"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Border BorderBrush="#D8E1EB" BorderThickness="0,0,1,0" Margin="0,0,16,0"/>
-      <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" Margin="0,0,28,0" VerticalAlignment="Top"/>
-      <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"/>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="116"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" Margin="12,8,12,0" VerticalAlignment="Top"/>
+      <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent" Margin="24,20,24,12"/>
     </Grid></ControlTemplate>
   </Window.Resources>
   <Window.Icon><StaticResource ResourceKey="DiskIcon"/></Window.Icon>
   <Grid x:Name="AppLayout" Background="{StaticResource CanvasBrush}">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="0"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Grid.RowDefinitions><RowDefinition Height="80"/><RowDefinition Height="*"/><RowDefinition Height="38"/></Grid.RowDefinitions>
-    <Border Background="#203652" Padding="19,0">
+    <Border x:Name="SideBackdrop" Grid.RowSpan="3" Background="#19395F" Visibility="Collapsed"><Image Source="{StaticResource DiskIcon}" Width="38" Height="38" VerticalAlignment="Top" Margin="0,20,0,0"/></Border>
+    <Border Grid.Column="1" Background="White" BorderBrush="#E3EAF2" BorderThickness="0,0,0,1" Padding="24,0">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,19,0">
-          <Image Width="32" Height="32" Source="{StaticResource DiskIcon}" Margin="0,0,11,0"/>
-          <StackPanel VerticalAlignment="Center"><TextBlock Text="磁盘清理助手" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
-            <TextBlock Text="空间有去处，清理有依据" Foreground="#B6C9E1" FontSize="11" Margin="0,2,0,0"/></StackPanel>
+          <Image x:Name="HeaderIcon" Width="32" Height="32" Source="{StaticResource DiskIcon}" Margin="0,0,11,0"/>
+          <StackPanel VerticalAlignment="Center"><TextBlock Text="磁盘清理助手" Foreground="#203652" FontSize="20" FontWeight="SemiBold"/>
+            <TextBlock Text="空间有去处，清理有依据" Foreground="#60758E" FontSize="11" Margin="0,2,0,0"/></StackPanel>
         </StackPanel>
         <StackPanel x:Name="DriveSwitcher" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
           <RadioButton x:Name="DriveC" GroupName="Scope" IsChecked="True" Style="{StaticResource DriveOption}" AutomationProperties.Name="只看 C 盘">
-            <StackPanel Width="119"><DockPanel><TextBlock Text="C:" FontWeight="Bold" FontFamily="Consolas"/><TextBlock x:Name="KindC" Text="本地磁盘" Margin="5,0" FontSize="12" Foreground="#E0EBF7"/></DockPanel>
-              <TextBlock x:Name="FreeC" FontSize="11" Foreground="#D3E1F1" Text="读取容量中"/><ProgressBar x:Name="BarC" Style="{StaticResource Meter}" Foreground="#AAC8FF"/></StackPanel>
+            <StackPanel Width="119"><DockPanel><TextBlock Text="C:" FontWeight="Bold" FontFamily="Consolas"/><TextBlock x:Name="KindC" Text="本地磁盘" Margin="5,0" FontSize="12" Foreground="#3D5979"/></DockPanel>
+              <TextBlock x:Name="FreeC" FontSize="11" Foreground="#526B89" Text="读取容量中"/><ProgressBar x:Name="BarC" Style="{StaticResource Meter}" Foreground="#3974D5"/></StackPanel>
           </RadioButton>
           <RadioButton x:Name="DriveD" GroupName="Scope" Style="{StaticResource DriveOption}" AutomationProperties.Name="只看 D 盘">
-            <StackPanel Width="119"><DockPanel><TextBlock Text="D:" FontWeight="Bold" FontFamily="Consolas"/><TextBlock x:Name="KindD" Text="本地磁盘" Margin="5,0" FontSize="12" Foreground="#E0EBF7"/></DockPanel>
-              <TextBlock x:Name="FreeD" FontSize="11" Foreground="#D3E1F1" Text="读取容量中"/><ProgressBar x:Name="BarD" Style="{StaticResource Meter}" Foreground="#86D9C7"/></StackPanel>
+            <StackPanel Width="119"><DockPanel><TextBlock Text="D:" FontWeight="Bold" FontFamily="Consolas"/><TextBlock x:Name="KindD" Text="本地磁盘" Margin="5,0" FontSize="12" Foreground="#3D5979"/></DockPanel>
+              <TextBlock x:Name="FreeD" FontSize="11" Foreground="#526B89" Text="读取容量中"/><ProgressBar x:Name="BarD" Style="{StaticResource Meter}" Foreground="#5C8CD2"/></StackPanel>
           </RadioButton>
         </StackPanel>
         <StackPanel x:Name="MachineScope" Grid.Column="1" VerticalAlignment="Center" Visibility="Collapsed" Margin="12,0">
-          <TextBlock Text="本机应用与启动项" Foreground="White" FontWeight="SemiBold"/>
-          <TextBlock Text="跨磁盘显示 · 当前账户可读取的记录" Foreground="#B6C9E1" FontSize="11" Margin="0,3,0,0"/>
+          <TextBlock Text="本机应用与启动项" Foreground="#203652" FontWeight="SemiBold"/>
+          <TextBlock Text="跨磁盘显示 · 当前账户可读取的记录" Foreground="#60758E" FontSize="11" Margin="0,3,0,0"/>
         </StackPanel>
-        <Button x:Name="RefreshBtn" Grid.Column="2" VerticalAlignment="Center" Background="#2A425F" BorderBrush="#65809F" Foreground="White" AutomationProperties.Name="重新扫描" ToolTip="重新扫描 C、D 盘的清理规则和文件大小">
-          <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RescanOutline}" Width="14" Height="14" Stretch="Uniform" Stroke="White" StrokeThickness="1.8" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="重新扫描"/></StackPanel>
+        <Button x:Name="RefreshBtn" Grid.Column="2" VerticalAlignment="Center" Background="#F1F6FF" BorderBrush="#C5D7F2" Foreground="#2459AF" AutomationProperties.Name="重新扫描" ToolTip="重新扫描 C、D 盘的清理规则和文件大小">
+          <StackPanel Orientation="Horizontal"><Path Data="{StaticResource RescanOutline}" Width="14" Height="14" Stretch="Uniform" Stroke="#2459AF" StrokeThickness="1.8" Margin="0,0,6,0" VerticalAlignment="Center"/><TextBlock Text="重新扫描"/></StackPanel>
         </Button>
       </Grid>
     </Border>
-    <TabControl x:Name="Tabs" Grid.Row="1" Margin="20,16,20,12" Background="Transparent" BorderThickness="0" SelectedIndex="0" Template="{StaticResource TopTabs}">
+    <TabControl x:Name="Tabs" Grid.Row="1" Grid.ColumnSpan="2" Margin="20,16,20,12" Background="Transparent" BorderThickness="0" SelectedIndex="0" Template="{StaticResource TopTabs}">
       <TabItem x:Name="FoldersTab" Header="磁盘目录" Tag="M2,5 H8 L10,7 H20 V17 H2 Z M2,9 H20" AutomationProperties.Name="磁盘目录">
         <Grid TextElement.Foreground="#20324A"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
           <DockPanel x:Name="FolderHeading" Margin="0,0,0,16"><TextBlock Text="磁盘目录" Style="{StaticResource SectionTitle}"/><TextBlock Text="逐层查看文件夹用途与空间占用" Style="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="16,0,0,3"/></DockPanel>
@@ -520,10 +527,11 @@
         </Grid>
       </TabItem>
     </TabControl>
-    <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#D8E1EB" BorderThickness="0,1,0,0" Padding="20,0">
+    <Border Grid.Row="2" Grid.Column="1" Background="#FFFFFF" BorderBrush="#D8E1EB" BorderThickness="0,1,0,0" Padding="20,0">
       <DockPanel><Button x:Name="GuideBtn" Content="使用说明" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" ToolTip="阅读兼容性、清理规则与实现原理"/>
         <Button x:Name="KeepRulesBtn" Content="保留规则" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0"/>
         <Button x:Name="ResultsBtn" Content="清理结果" Style="{StaticResource LinkButton}" DockPanel.Dock="Right" Margin="0,0,8,0" IsEnabled="False"/>
+        <Button x:Name="ScanTasksBtn" Content="扫描任务" Style="{StaticResource LinkButton}" DockPanel.Dock="Left" Margin="0,0,14,0" Visibility="Collapsed" FontWeight="SemiBold" AutomationProperties.Name="查看后台扫描任务"/>
         <TextBlock x:Name="StatusText" Text="正在准备扫描…" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="#3B556C"/></DockPanel>
     </Border>
   </Grid>
