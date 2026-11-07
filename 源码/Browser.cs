@@ -193,7 +193,7 @@ namespace DiskGuide
                     folders = result.Item1;
                     folderErrors = result.Item2;
                     foreach (var f in folders) Prepare(f);
-                    folders = folders.OrderByDescending(f => f.ReadyBytes).ThenBy(f => f.Drive).ThenBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                    folders = folders.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
                     dirty = false;
                     FilterFolders(prefer);
                 }

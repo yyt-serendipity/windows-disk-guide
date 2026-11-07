@@ -15,7 +15,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -47,7 +47,7 @@ namespace DiskGuide
         private readonly Dictionary<string, string> outcomes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private List<Rule> rules = new List<Rule>();
         private List<ScanRow> rows = new List<ScanRow>();
-        private string scope = "", cleanScopePath;
+        private string scope = "C:", cleanScopePath;
         private bool busy;
 
         public Shell(Func<List<Rule>> ruleSource)
@@ -69,12 +69,16 @@ namespace DiskGuide
             refresh = Get<Button>("RefreshBtn");
             clean = Get<Button>("CleanBtn");
             WireBrowser();
+            WireManagement();
             Get<Button>("GuideBtn").Click += delegate { OpenGuide(); };
             View.Loaded += async delegate { await Refresh(false); };
             View.Closed += delegate { lifetime.Cancel(); StopBrowser(); };
-            refresh.Click += async delegate { await Refresh(false); };
+            refresh.Click += async delegate {
+                if (OnStartup) await LoadStartup();
+                else if (OnSoftware) await LoadSoftware();
+                else await Refresh(false);
+            };
             clean.Click += async delegate { await Refresh(true); };
-            Get<RadioButton>("AllDrives").Checked += delegate { ChangeScope(""); };
             Get<RadioButton>("DriveC").Checked += delegate { ChangeScope("C:"); };
             Get<RadioButton>("DriveD").Checked += delegate { ChangeScope("D:"); };
             cleanGrid.SelectionChanged += delegate { ShowCleanDetail(); };
@@ -82,6 +86,7 @@ namespace DiskGuide
             cleanGrid.SizeChanged += delegate { FitCleanColumns(); };
             tabs.SelectionChanged += delegate(object sender, SelectionChangedEventArgs e) {
                 if (e.Source != tabs) return;
+                UpdateNavigation();
                 if (OnFolders) ShowBrowser();
                 else
                 {
@@ -89,6 +94,7 @@ namespace DiskGuide
                     View.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, (Action)FitCleanColumns);
                 }
             };
+            if (!Engine.ReadyFixed(@"C:\") && Engine.ReadyFixed(@"D:\")) Get<RadioButton>("DriveD").IsChecked = true;
             Get<Button>("ClearScopeBtn").Click += delegate { cleanScopePath = null; BindClean(); };
         }
 
@@ -227,7 +233,6 @@ namespace DiskGuide
             cleanFilter.IsEnabled = false;
             Get<Button>("ClearScopeBtn").IsEnabled = false;
             refresh.IsEnabled = false;
-            Get<RadioButton>("AllDrives").IsEnabled = false;
             clean.IsEnabled = false;
             ShowDrives();
             Status(delete ? "正在清理勾选的文件…" : "正在扫描已识别的缓存目录…");
@@ -274,7 +279,6 @@ namespace DiskGuide
                     cleanFilter.IsEnabled = true;
                     Get<Button>("ClearScopeBtn").IsEnabled = true;
                     refresh.IsEnabled = true;
-                    Get<RadioButton>("AllDrives").IsEnabled = true;
                     ShowDrives();
                     BindClean();
                     RefreshBrowser();

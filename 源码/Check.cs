@@ -208,11 +208,14 @@ namespace DiskGuide
             using(var process=Process.GetCurrentProcess()) busyRule.Processes=new[]{process.ProcessName};
             var fixture=new Shell(()=>new List<Rule>{R("button",FileKind.OldTemp,7),R("shader",FileKind.Shader,0),R("button-copy",FileKind.OldTemp,7),busyRule});
             Window w=fixture.View;Hidden(w);var button=C<Button>(w,"CleanBtn");
+            Expect(C<RadioButton>(w,"DriveC").IsChecked==true || !Engine.ReadyFixed(@"C:\"),"Landing page starts at C root when available");
+            string fixtureDrive="Drive"+Path.GetPathRoot(box)[0];
+            C<RadioButton>(w,fixtureDrive).IsChecked=true;
             Pump(()=>button.IsEnabled,"Fixture UI scan: "+C<TextBlock>(w,"StatusText").Text);
             string other=Path.GetPathRoot(box).StartsWith("C",StringComparison.OrdinalIgnoreCase)?"DriveD":"DriveC";
             if(C<RadioButton>(w,other).IsEnabled) {
                 C<RadioButton>(w,other).IsChecked=true;Expect(!button.IsEnabled,"Other disk scope excludes fixture");
-                C<RadioButton>(w,"AllDrives").IsChecked=true;
+                C<RadioButton>(w,fixtureDrive).IsChecked=true;
             }
             Expect(button.IsEnabled,"One-click enabled for selected files");
             Expect(C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"FoldersTab"),"Directory browser is the landing page");
@@ -265,6 +268,7 @@ namespace DiskGuide
             C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"FoldersTab");
             string drive=Path.GetPathRoot(box).Substring(0,2).ToUpperInvariant();
             C<RadioButton>(w,"Drive"+drive[0]).IsChecked=true;
+            C<Button>(w,"HomeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var list=C<DataGrid>(w,"FolderGrid");
             Pump(()=>list.Items.Count>0 && list.Items.Cast<Folder>().All(x=>x.Drive==drive),"Fixture drive filter");
             SelectPath(w,box);
@@ -290,10 +294,90 @@ namespace DiskGuide
             w.Width=810;w.Height=580;w.UpdateLayout();
             Pump(()=>w.ActualWidth<=811 && list.ActualHeight>=220 && list.Columns[0].ActualWidth>list.ActualWidth*0.48 && list.Columns[1].ActualWidth>=82,"Compact table keeps folder and policy labels readable");
             Expect(Grid.GetColumn(C<Border>(w,"DetailPane"))==2,"Short window keeps room for list rows");
+            VerifyManagementUi(fixture, preview);
             w.Close();
 
             if (!String.IsNullOrWhiteSpace(preview)) SaveRealPreviews(preview);
             app.Shutdown();
+        }
+
+        private static void VerifyManagement()
+        {
+            byte[] approved=new byte[12];approved[0]=2;
+            Expect(StartupInventory.ApprovalState(approved).Contains("已启用"),"Startup enabled record");
+            approved[0]=3;
+            Expect(StartupInventory.ApprovalState(approved).Contains("已禁用"),"Startup disabled record");
+            approved[0]=9;
+            Expect(StartupInventory.ApprovalState(approved).Contains("未知") && StartupInventory.ApprovalState(null).Contains("未确认"),"Unknown startup state never implies enabled");
+            Expect(StartupInventory.IsAutomaticUserService(2,16) && !StartupInventory.IsAutomaticUserService(2,1) && !StartupInventory.IsAutomaticUserService(3,16),"Only automatic Win32 services are listed");
+            const string xml="<Task xmlns='http://schemas.microsoft.com/windows/2004/02/mit/task'><Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers><Actions><Exec><Command>sample.exe</Command><Arguments>--startup</Arguments></Exec></Actions></Task>";
+            var task=StartupInventory.ParseTask(xml,"Example task",@"\Example",false,4);
+            Expect(task.State.Contains("任务已禁用") && task.State.Contains("当前运行中"),"Disabled task can still be running");
+            var disabled=StartupInventory.ParseTask(xml.Replace("true","false"),"Example",@"\Example",true,3);
+            Expect(disabled.State.Contains("触发器已禁用"),"Disabled logon trigger is distinguished from enabled task");
+            Expect(StartupInventory.ParseTask(xml.Replace("LogonTrigger","TimeTrigger"),"Scheduled",@"\Scheduled",true,3)==null,"Scheduled-only tasks excluded from boot inventory");
+            string exe,args,reason;
+            Expect(SoftwareInventory.TryParseUninstall("\"C:\\Program Files\\Example\\uninstall.exe\" /remove",out exe,out args,out reason) && exe==@"C:\Program Files\Example\uninstall.exe" && args=="/remove","Quoted uninstall path parsed without shell");
+            Expect(!SoftwareInventory.TryParseUninstall(@"C:\Windows\System32\cmd.exe /c echo danger",out exe,out args,out reason),"Command shell uninstall not executed");
+            Expect(!SoftwareInventory.TryParseUninstall(@"\\server\share\uninstall.exe",out exe,out args,out reason),"Network uninstall target rejected");
+            Expect(!SoftwareInventory.TryParseUninstall("\"C:\\Example\\uninstall.exe\"suffix",out exe,out args,out reason),"Malformed quoted command rejected");
+            Expect(SoftwareInventory.TryParseUninstall("MsiExec.exe /I{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE} /quiet",out exe,out args,out reason) && args=="/x {aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee} /norestart","MSI install form becomes interactive exact product uninstall without reboot");
+            Expect(SoftwareInventory.ResidualPathProblem(@"C:\")!=null && SoftwareInventory.ResidualPathProblem(@"D:\Apps")!=null,"Shared roots cannot be residual targets");
+            Expect(SoftwareInventory.ResidualPathProblem(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments))!=null,"Personal documents are protected");
+            var owner=new SoftwareEntry {Name="Example",Id="fixture|example",InstallPath=@"C:\Program Files\DiskGuideFixture",UninstallCommand="example.exe"};
+            var inventory=new SoftwareInventoryResult(); inventory.Items.Add(owner);
+            Expect(!SoftwareInventory.PreviewResidual(owner,inventory).CanRecycle,"Registered software cannot be reclaimed as residual");
+            inventory.Items.Clear();inventory.Warnings.Add("Read denied");
+            Expect(!SoftwareInventory.PreviewResidual(owner,inventory).CanRecycle,"Incomplete inventory blocks residual cleanup");
+            inventory.Warnings.Clear();inventory.Items.Add(new SoftwareEntry{Id="other",InstallPath=owner.InstallPath+@"\Shared"});
+            Expect(!SoftwareInventory.PreviewResidual(owner,inventory).CanRecycle,"Other software nested below installation blocks residual cleanup");
+            var changed=new SoftwareEntry{Name="Example",Id=owner.Id,InstallPath=owner.InstallPath,UninstallCommand="different.exe"};
+            Expect(!SoftwareInventory.SameRegistration(owner,changed),"Changed uninstall command requires revalidation");
+            string identityFile=Put(@"identity\sample.dll","data",true);
+            string identity=SoftwareInventory.ReadIdentity(identityFile,false);
+            File.Move(identityFile,identityFile+".old");File.WriteAllText(identityFile,"data");File.SetLastWriteTimeUtc(identityFile,Old);
+            Expect(SoftwareInventory.ReadIdentity(identityFile,false)!=identity,"Residual identity detects same-size same-time file replacement");
+            var approvedPlan=new ResidualPlan{CanRecycle=true};approvedPlan.Manifest.Add(identity);
+            var newPlan=new ResidualPlan{CanRecycle=true};newPlan.Manifest.Add(SoftwareInventory.ReadIdentity(identityFile,false));
+            Expect(!SoftwareInventory.MatchesApproved(approvedPlan,newPlan),"Changed residual identity invalidates approval");
+        }
+
+        private static void VerifyManagementUi(Shell shell,string preview)
+        {
+            var startup=new StartupInventoryResult();
+            startup.Items.Add(new StartupEntry{Name="示例笔记",Source="登录启动",State="已禁用（系统记录）",Command=@"D:\Apps\ExampleNotes\notes.exe --startup",Location=@"HKCU\Software\Example"});
+            startup.Items.Add(new StartupEntry{Name="示例更新任务",Source="计划任务 · 登录",State="任务已禁用 · 当前运行中",Command="update.exe",Location=@"\Example\Update"});
+            startup.Items.Add(new StartupEntry{Name="示例后台服务",Source="自动服务",State="自动（延迟启动）· 未读取运行状态",Command="service.exe",Location=@"HKLM\System\Example"});
+            shell.StartupReader=()=>startup;
+            var software=new SoftwareInventoryResult();
+            software.Items.Add(new SoftwareEntry{Name="示例笔记",Id="fixture-notes",Kind="桌面软件",Publisher="Example Studio",Version="2.4.0",InstallPath=@"D:\Apps\ExampleNotes",SizeText="85 MiB",UninstallCommand="fixture-only.exe"});
+            software.Items.Add(new SoftwareEntry{Name="示例系统组件",Id="fixture-system",Kind="商店应用",Publisher="Example",Version="1.0",SizeText="未登记",ProtectionReason="系统、框架或资源包，不在本工具中卸载。"});
+            shell.SoftwareReader=()=>software;
+            var w=shell.View;
+            w.Width=1180;w.Height=800;
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
+            Pump(()=>C<DataGrid>(w,"StartupGrid").Items.Count==3,"Startup inventory binds fixture data");
+            Expect(C<StackPanel>(w,"DriveSwitcher").Visibility==Visibility.Collapsed,"Machine startup scope not falsely filtered by selected disk");
+            C<ComboBox>(w,"StartupKind").SelectedIndex=2;
+            Expect(C<DataGrid>(w,"StartupGrid").Items.Count==1 && C<TextBlock>(w,"StartupTitle").Text.Contains("当前运行中"),"Startup source filter and running state detail");
+            C<TextBox>(w,"StartupSearch").Text="missing-entry";
+            Expect(C<DataGrid>(w,"StartupGrid").Items.Count==0 && C<TextBlock>(w,"StartupEmpty").Visibility==Visibility.Visible,"Startup search has empty state");
+            C<TextBox>(w,"StartupSearch").Clear();C<ComboBox>(w,"StartupKind").SelectedIndex=0;
+            if(!String.IsNullOrWhiteSpace(preview)){Directory.CreateDirectory(preview);Image(w,preview,"startup.png");}
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
+            Pump(()=>C<DataGrid>(w,"SoftwareGrid").Items.Count==2,"Software inventory binds fixtures without reading real installs");
+            Expect(C<Button>(w,"UninstallBtn").IsEnabled,"Eligible software offers explicit uninstall action");
+            C<ComboBox>(w,"SoftwareKind").SelectedIndex=2;
+            Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count==1 && !C<Button>(w,"UninstallBtn").IsEnabled,"Protected package cannot launch uninstall");
+            C<ComboBox>(w,"SoftwareKind").SelectedIndex=0;C<TextBox>(w,"SoftwareSearch").Text="D:\\Apps";
+            Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count==1,"Software search matches installation location");
+            C<TextBox>(w,"SoftwareSearch").Clear();
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"software.png");
+            w.Width=810;w.Height=580;w.UpdateLayout();
+            Pump(()=>C<DataGrid>(w,"SoftwareGrid").ActualHeight>100,"Small window retains useful software rows");
+            if(!String.IsNullOrWhiteSpace(preview))Image(w,preview,"software-compact.png");
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"FoldersTab");
+            Expect(C<StackPanel>(w,"DriveSwitcher").Visibility==Visibility.Visible,"Returning to disk view restores separate drives");
         }
         private static void SaveRealPreviews(string preview)
         {
@@ -316,6 +400,15 @@ namespace DiskGuide
                 w.Width=810;w.Height=580;w.UpdateLayout();
                 Pump(()=>w.ActualWidth<=811,"Compact preview layout");
                 Image(w,preview,"compact.png");
+                w.Width=1180;w.Height=800;
+                C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"StartupTab");
+                Pump(()=>C<TextBlock>(w,"StartupCount").Text.EndsWith("项"),"Read-only startup inventory preview");
+                Expect(C<DataGrid>(w,"StartupGrid").Items.Count>0,"Real startup inventory binds without changes");
+                Image(w,preview,"startup-real.png");
+                C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"SoftwareTab");
+                Pump(()=>C<TextBlock>(w,"SoftwareCount").Text.EndsWith("项"),"Read-only software inventory preview");
+                Expect(C<DataGrid>(w,"SoftwareGrid").Items.Count>0,"Real software inventory binds without uninstall");
+                Image(w,preview,"software-real.png");
                 Console.WriteLine("Saved read-only local previews to the requested directory.");
             }
             finally {w.Close();}
@@ -352,7 +445,7 @@ namespace DiskGuide
                 Directory.CreateDirectory(fresh);
                 box=fresh;
                 System.Windows.Media.RenderOptions.ProcessRenderMode=System.Windows.Interop.RenderMode.SoftwareOnly;
-                VerifyEngine(); VerifyUsage(); VerifyBuildVolume(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
+                VerifyEngine(); VerifyUsage(); VerifyBuildVolume(); VerifyManagement(); VerifyUi(args.FirstOrDefault());Console.WriteLine("PASS: "+assertions+" checks");return 0;
             }
             catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
             finally {if(box!=null && Directory.Exists(box))DeleteFixture(box);}
