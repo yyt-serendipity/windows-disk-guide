@@ -337,7 +337,7 @@ namespace DiskGuide
             C<RadioButton>(w,fixtureDrive).IsChecked=true;
             Pump(()=>button.IsEnabled,"Fixture UI scan: "+C<TextBlock>(w,"StatusText").Text);
             w.UpdateLayout();
-            Expect(HitTest(w,C<Grid>(w,"AppLayout"),150,10)==2,"Integrated header retains native title drag and double-click hit area");
+            Expect(HitTest(w,C<Grid>(w,"AppLayout"),12,24)==2,"Integrated header retains native title drag and double-click hit area");
             var captionClose=C<Button>(w,"CloseBtn");
             Expect(HitTest(w,captionClose,22,16)==1 && HitTest(w,C<RadioButton>(w,"DriveC"),40,24)==1,"Caption controls and drive switch remain clickable");
             C<Button>(w,"MaximizeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
