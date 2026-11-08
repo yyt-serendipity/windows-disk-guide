@@ -303,7 +303,7 @@ namespace DiskGuide
             Expect(Folder.ContainsRule(Inside("button"),Inside(@"button\cache")) &&
                 !Folder.ContainsRule(Inside("button"),Inside("button-copy")), "Folder scope respects path boundaries");
         }
-        private static void PressEnter(DataGrid grid)
+        private static void PressEnter(UIElement grid)
         {
             grid.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(grid), 0, Key.Enter) {RoutedEvent=Keyboard.PreviewKeyDownEvent});
         }
@@ -337,7 +337,7 @@ namespace DiskGuide
             C<RadioButton>(w,fixtureDrive).IsChecked=true;
             Pump(()=>button.IsEnabled,"Fixture UI scan: "+C<TextBlock>(w,"StatusText").Text);
             w.UpdateLayout();
-            Expect(HitTest(w,C<Grid>(w,"AppLayout"),w.ActualWidth/2,12)==2,"Integrated header retains native title drag and double-click hit area");
+            Expect(HitTest(w,C<Grid>(w,"AppLayout"),150,10)==2,"Integrated header retains native title drag and double-click hit area");
             var captionClose=C<Button>(w,"CloseBtn");
             Expect(HitTest(w,captionClose,22,16)==1 && HitTest(w,C<RadioButton>(w,"DriveC"),40,24)==1,"Caption controls and drive switch remain clickable");
             C<Button>(w,"MaximizeBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -360,6 +360,13 @@ namespace DiskGuide
             Expect(C<TextBlock>(w,"HomeCleanSize").Text=="12 B","Home suggestion excludes optional, running-app and unrelated files");
             Expect(C<TextBlock>(w,"HomeDiskAdvice").Foreground.ToString()=="#FF20324A","Home text does not inherit selected navigation colors");
             Expect(C<TextBlock>(w,"HomeCleanHint").Text.Contains("先退出软件"),"Home explains why some cache cannot be cleaned yet");
+            var featureSearch=C<TextBox>(w,"GlobalSearch");featureSearch.Text="迁移";
+            Expect(C<ListBox>(w,"GlobalSearchResults").Items.Count==1,"Global feature search finds migration without starting it");
+            featureSearch.Text="no-matching-feature";Expect(C<ListBox>(w,"GlobalSearchResults").Items.Count==0 && C<TextBlock>(w,"GlobalSearchEmpty").Visibility==Visibility.Visible,"Feature search explains an empty result");
+            featureSearch.Text="文件夹";PressEnter(featureSearch);Pump(()=>C<TabControl>(w,"Tabs").SelectedItem==C<TabItem>(w,"FoldersTab"),"Feature search keyboard activation navigates to folders");
+            Expect(File.Exists(eligible) && featureSearch.Text.Length==0,"Feature navigation clears the query and never cleans files");
+            C<TabControl>(w,"Tabs").SelectedItem=C<TabItem>(w,"OverviewTab");
+            Pump(()=>C<Button>(w,"HomeProtectionBtn").IsVisible,"Return home after feature search");
             Expect(C<Button>(w,"HomeProtectionBtn").IsVisible && C<Button>(w,"HomeRecycleBtn").IsVisible && C<Button>(w,"HomeTransferBtn").IsVisible && C<Button>(w,"HomeGrowthBtn").IsVisible,"Home exposes protection, recycle, migration and growth actions");
             C<Button>(w,"HomeGrowthBtn").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var growthWindow=Application.Current.Windows.Cast<Window>().Single(x=>x!=w && x.Title=="最近哪些位置又变大了");

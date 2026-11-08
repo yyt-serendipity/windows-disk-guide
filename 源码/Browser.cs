@@ -91,7 +91,8 @@ namespace DiskGuide
             double width = View.ActualWidth > 0 ? View.ActualWidth : View.Width;
             double height = View.ActualHeight > 0 ? View.ActualHeight : View.Height;
             var layout=Get<Grid>("AppLayout");
-            layout.RowDefinitions[0].Height=new GridLength(80);
+            layout.RowDefinitions[0].Height=new GridLength(height<680?104:124);
+            Get<Border>("HeaderToolbar").Margin=new Thickness(0,height<680?48:56,0,0);
             layout.RowDefinitions[2].Height=new GridLength(height<680?32:38);
             bool rail=width>=1100 && height>=680;
             string navigation=rail?"Rail":"Top";
@@ -100,13 +101,14 @@ namespace DiskGuide
                 tabs.Tag=navigation;tabs.TabStripPlacement=rail?Dock.Left:Dock.Top;
                 tabs.Template=(ControlTemplate)View.FindResource(rail?"SidebarTabs":"TopTabs");
             }
-            layout.ColumnDefinitions[0].Width=new GridLength(rail?116:0);
+            layout.ColumnDefinitions[0].Width=new GridLength(rail?224:0);
             Get<Border>("SideBackdrop").Visibility=rail?Visibility.Visible:Visibility.Collapsed;
             Get<Image>("HeaderIcon").Visibility=rail?Visibility.Collapsed:Visibility.Visible;
+            Get<StackPanel>("HeaderBrand").Visibility=rail?Visibility.Collapsed:Visibility.Visible;
             tabs.Margin=rail?new Thickness(0):new Thickness(20,9,20,12);
             Get<DockPanel>("FolderHeading").Visibility=rail && height>=680?Visibility.Visible:Visibility.Collapsed;
             Get<DockPanel>("CleanupHeading").Visibility=rail && height>=680?Visibility.Visible:Visibility.Collapsed;
-            width-=rail?156:0;
+            width-=rail?264:0;
             bool narrow = width < 990;
             compact = narrow && height >= 685;
             var body = Get<Grid>("FolderLayout");

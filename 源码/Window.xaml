@@ -2,10 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="磁盘清理助手" Width="1320" Height="840" MinWidth="800" MinHeight="580"
-        WindowStartupLocation="CenterScreen" Background="#F5F7FA" FontFamily="Microsoft YaHei UI, Segoe UI"
+        WindowStartupLocation="CenterScreen" Background="#D1DFED" FontFamily="Microsoft YaHei UI, Segoe UI"
         FontSize="13" Foreground="#20324A" UseLayoutRounding="True" SnapsToDevicePixels="True" Language="zh-CN">
   <shell:WindowChrome.WindowChrome>
-    <shell:WindowChrome CaptionHeight="80" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    <shell:WindowChrome CaptionHeight="54" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
   </shell:WindowChrome.WindowChrome>
   <Window.Resources>
     <Style x:Key="CaptionButton" TargetType="Button">
@@ -22,12 +22,13 @@
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
-    <SolidColorBrush x:Key="CanvasBrush" Color="#F5F7FA"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="CanvasBrush" Color="#E9EFF7"/>
+    <SolidColorBrush x:Key="ShellBrush" Color="#D1DFED"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#F9FBFD"/>
     <SolidColorBrush x:Key="LineBrush" Color="#D8E1EB"/>
-    <SolidColorBrush x:Key="AccentBrush" Color="#345BC1"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#006FC4"/>
     <SolidColorBrush x:Key="HoverBrush" Color="#F0F4FB"/>
-    <SolidColorBrush x:Key="SelectionBrush" Color="#E7EEFD"/>
+    <SolidColorBrush x:Key="SelectionBrush" Color="#C4D6E8"/>
     <SolidColorBrush x:Key="TextBrush" Color="#20324A"/>
     <SolidColorBrush x:Key="SecondaryBrush" Color="#52687F"/>
     <Style TargetType="Button">
@@ -130,21 +131,21 @@
       <Setter Property="Foreground" Value="#54677F"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
         <Border x:Name="tabLine" BorderThickness="0,0,0,2" BorderBrush="Transparent" Margin="0,0,8,0" Padding="12,11,12,12" CornerRadius="5,5,0,0">
-          <StackPanel x:Name="navContent" Orientation="Horizontal"><Path x:Name="navIcon" Data="{Binding Tag,RelativeSource={RelativeSource TemplatedParent}}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineJoin="Round" Stretch="Uniform" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+          <StackPanel x:Name="navContent" Orientation="Horizontal"><Path x:Name="navIcon" Data="{Binding Tag,RelativeSource={RelativeSource TemplatedParent}}" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.7" StrokeLineJoin="Round" Stretch="Uniform" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
             <ContentPresenter ContentSource="Header" TextBlock.FontSize="14" TextBlock.FontWeight="SemiBold"/></StackPanel>
         </Border><ControlTemplate.Triggers>
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="tabLine" Property="Background" Value="{StaticResource HoverBrush}"/></Trigger>
           <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="#294EAC"/><Setter TargetName="tabLine" Property="BorderBrush" Value="#345BC1"/><Setter TargetName="tabLine" Property="Background" Value="{StaticResource SelectionBrush}"/></Trigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="tabLine" Property="Background" Value="#E0EAFB"/></Trigger>
           <DataTrigger Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail">
-            <Setter Property="Foreground" Value="#C7D8F2"/><Setter TargetName="tabLine" Property="Background" Value="Transparent"/>
-            <Setter TargetName="tabLine" Property="Margin" Value="0,0,0,8"/><Setter TargetName="tabLine" Property="Padding" Value="8,12"/>
-            <Setter TargetName="tabLine" Property="CornerRadius" Value="6"/><Setter TargetName="tabLine" Property="BorderThickness" Value="0"/>
-            <Setter TargetName="navContent" Property="Orientation" Value="Vertical"/><Setter TargetName="navContent" Property="HorizontalAlignment" Value="Center"/>
-            <Setter TargetName="navIcon" Property="Width" Value="23"/><Setter TargetName="navIcon" Property="Height" Value="23"/><Setter TargetName="navIcon" Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Foreground" Value="#243E55"/><Setter TargetName="tabLine" Property="Background" Value="Transparent"/>
+            <Setter TargetName="tabLine" Property="Margin" Value="0,0,0,8"/><Setter TargetName="tabLine" Property="Padding" Value="18,16"/>
+            <Setter TargetName="tabLine" Property="CornerRadius" Value="7"/><Setter TargetName="tabLine" Property="BorderThickness" Value="3,0,0,0"/>
+            <Setter TargetName="navContent" Property="Orientation" Value="Horizontal"/><Setter TargetName="navContent" Property="HorizontalAlignment" Value="Left"/>
+            <Setter TargetName="navIcon" Property="Width" Value="22"/><Setter TargetName="navIcon" Property="Height" Value="22"/><Setter TargetName="navIcon" Property="Margin" Value="0,0,18,0"/><Setter TargetName="navIcon" Property="Stroke" Value="#0077C8"/>
           </DataTrigger>
-          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsMouseOver,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="tabLine" Property="Background" Value="#244C7F"/></MultiDataTrigger>
-          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsSelected,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Foreground" Value="White"/><Setter TargetName="tabLine" Property="Background" Value="#2864CC"/></MultiDataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsMouseOver,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="tabLine" Property="Background" Value="#C9DAEA"/></MultiDataTrigger>
+          <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsSelected,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Foreground" Value="#172F45"/><Setter TargetName="tabLine" Property="Background" Value="#BFCFE1"/><Setter TargetName="tabLine" Property="BorderBrush" Value="#0077C8"/></MultiDataTrigger>
           <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Tag,RelativeSource={RelativeSource AncestorType=TabControl}}" Value="Rail"/><Condition Binding="{Binding IsKeyboardFocused,RelativeSource={RelativeSource Self}}" Value="True"/></MultiDataTrigger.Conditions><Setter TargetName="tabLine" Property="BorderThickness" Value="1"/><Setter TargetName="tabLine" Property="BorderBrush" Value="#B7D4FF"/></MultiDataTrigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
@@ -175,7 +176,7 @@
       <Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style>
     <Style x:Key="NumberCell" TargetType="TextBlock" BasedOn="{StaticResource CellText}"><Setter Property="TextAlignment" Value="Right"/><Setter Property="Typography.NumeralAlignment" Value="Tabular"/></Style>
     <Style x:Key="Frame" TargetType="Border">
-      <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#D7E1EB"/>
+      <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/><Setter Property="BorderBrush" Value="#D2DCE7"/>
       <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/>
     </Style>
     <Style x:Key="Muted" TargetType="TextBlock"><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="#52687F"/></Style>
@@ -187,8 +188,8 @@
       <Setter Property="Foreground" Value="#244FAA"/><Setter Property="Padding" Value="5,2"/><Setter Property="MinHeight" Value="24"/>
     </Style>
     <Style x:Key="Action" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Background" Value="#345BC1"/><Setter Property="Foreground" Value="White"/>
-      <Setter Property="BorderBrush" Value="#345BC1"/><Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Background" Value="#006FC4"/><Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderBrush" Value="#006FC4"/><Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
     <Style x:Key="SearchField" TargetType="TextBox">
       <Setter Property="Padding" Value="10,7"/><Setter Property="BorderBrush" Value="#C5D2E0"/>
@@ -206,7 +207,7 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style x:Key="SectionTitle" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="23"/><Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontSize" Value="28"/><Setter Property="FontWeight" Value="Normal"/>
       <Setter Property="Foreground" Value="#203652"/>
     </Style>
     <Geometry x:Key="FolderOutline">M2.5,6 L9,6 11,8 21,8 21,18.5 2.5,18.5 Z M3,10 L20,10</Geometry>
@@ -219,19 +220,19 @@
       <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent" Margin="0,12,0,0"/>
     </Grid></ControlTemplate>
     <ControlTemplate x:Key="SidebarTabs" TargetType="TabControl"><Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="116"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" Margin="12,8,12,0" VerticalAlignment="Top"/>
-      <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent" Margin="24,20,24,12"/>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="224"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" Margin="8,8,8,0" VerticalAlignment="Top"/>
+      <Border Grid.Column="1" Background="{StaticResource CanvasBrush}" BorderBrush="#BACDDD" BorderThickness="1,1,0,0" CornerRadius="12,0,0,0"><ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" Margin="28,24,24,12"/></Border>
     </Grid></ControlTemplate>
   </Window.Resources>
-  <Grid x:Name="AppLayout" Background="{StaticResource CanvasBrush}">
+  <Grid x:Name="AppLayout" Background="{StaticResource ShellBrush}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="0"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Grid.RowDefinitions><RowDefinition Height="80"/><RowDefinition Height="*"/><RowDefinition Height="38"/></Grid.RowDefinitions>
-    <Border x:Name="SideBackdrop" Grid.RowSpan="3" Background="#19395F" Visibility="Collapsed"><Image Source="{DynamicResource DiskIcon}" Width="38" Height="38" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Top" Margin="0,20,0,0"/></Border>
-    <Border Grid.Column="1" Background="{StaticResource CanvasBrush}" Padding="24,0,16,0">
+    <Grid.RowDefinitions><RowDefinition Height="124"/><RowDefinition Height="*"/><RowDefinition Height="38"/></Grid.RowDefinitions>
+    <Border x:Name="SideBackdrop" Grid.RowSpan="3" Background="{StaticResource ShellBrush}" Visibility="Collapsed"><StackPanel Orientation="Horizontal" VerticalAlignment="Top" Margin="20,20,0,0"><Image Source="{DynamicResource DiskIcon}" Width="28" Height="28" RenderOptions.BitmapScalingMode="HighQuality"/><TextBlock Text="磁盘清理助手" FontSize="18" FontWeight="SemiBold" Margin="12,0,0,0" VerticalAlignment="Center"/></StackPanel></Border>
+    <Border x:Name="HeaderToolbar" Grid.Column="1" Background="{StaticResource ShellBrush}" Padding="24,0,16,0" Margin="0,56,0,0">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,19,0">
+        <StackPanel x:Name="HeaderBrand" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,19,0">
           <Image x:Name="HeaderIcon" Width="32" Height="32" Source="{DynamicResource DiskIcon}" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,11,0"/>
           <StackPanel VerticalAlignment="Center"><TextBlock Text="磁盘清理助手" Foreground="#203652" FontSize="20" FontWeight="SemiBold"/>
             <TextBlock Text="找到占用，清理空间" Foreground="#60758E" FontSize="11" Margin="0,2,0,0"/></StackPanel>
@@ -255,6 +256,18 @@
         </Button>
       </Grid>
     </Border>
+    <Grid Grid.Column="1" Margin="24,10,154,0" VerticalAlignment="Top" MaxWidth="680" HorizontalAlignment="Stretch" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+      <Border Background="#F0F6FB" BorderBrush="#BBCEDE" BorderThickness="1" CornerRadius="20" Height="40">
+        <Grid Margin="15,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/></Grid.ColumnDefinitions>
+          <TextBox x:Name="GlobalSearch" Background="Transparent" BorderThickness="0" FontSize="14" VerticalContentAlignment="Center" Padding="0" AutomationProperties.Name="搜索功能" ToolTip="搜索清理、文件夹、开机启动、迁移等功能"/>
+          <TextBlock x:Name="GlobalSearchHint" Text="搜索功能，例如 清理、开机、迁移" Foreground="#556A7C" VerticalAlignment="Center" IsHitTestVisible="False"/>
+          <Path Grid.Column="1" Data="{StaticResource SearchOutline}" Stroke="#556A7C" StrokeThickness="1.3" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center"/>
+        </Grid>
+      </Border>
+      <Popup x:Name="GlobalSearchPopup" PlacementTarget="{Binding ElementName=GlobalSearch}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+        <Border Background="#F9FBFD" BorderBrush="#BBCEDE" BorderThickness="1" CornerRadius="8" Padding="8" MinWidth="300" MaxWidth="540" Margin="0,8,0,0"><StackPanel><TextBlock x:Name="GlobalSearchEmpty" Text="没有匹配的功能，试试“清理”或“迁移”。" Margin="8" Visibility="Collapsed"/><ListBox x:Name="GlobalSearchResults" BorderThickness="0" Background="Transparent" MaxHeight="300" DisplayMemberPath="Item1" AutomationProperties.Name="匹配的功能"><ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="12,10"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style></ListBox.ItemContainerStyle></ListBox></StackPanel></Border>
+      </Popup>
+    </Grid>
     <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top" Orientation="Horizontal" Margin="0,1,1,0">
       <Button x:Name="MinimizeBtn" Style="{StaticResource CaptionButton}" ToolTip="最小化" AutomationProperties.Name="最小化"><Path Data="M0,5 H10" Width="10" Height="10" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1"/></Button>
       <Button x:Name="MaximizeBtn" Style="{StaticResource CaptionButton}" ToolTip="最大化" AutomationProperties.Name="最大化"><Path x:Name="MaximizeGlyph" Data="M0.5,0.5 H9.5 V9.5 H0.5 Z" Width="10" Height="10" Stroke="{Binding Foreground,RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1"/></Button>

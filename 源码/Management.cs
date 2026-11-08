@@ -64,7 +64,7 @@ namespace DiskGuide
             foreach (string page in new[] { "Startup", "Software" })
             {
                 Get<TextBlock>(page + "Subtitle").Visibility = small ? Visibility.Collapsed : Visibility.Visible;
-                Get<TextBlock>(page + "Heading").FontSize = small ? 20 : 23;
+                Get<TextBlock>(page + "Heading").FontSize = small ? 20 : 28;
                 Get<StackPanel>(page + "Header").Margin = new Thickness(0,0,0,small ? 9 : 14);
                 Get<TextBox>(page + "Detail").MaxHeight = small ? 45 : 76;
             }

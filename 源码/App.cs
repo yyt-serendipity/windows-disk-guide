@@ -16,7 +16,7 @@ using System.Xml;
 
 [assembly: AssemblyTitle("磁盘清理助手")]
 [assembly: AssemblyDescription("C、D 盘的目录用途与本地缓存清理")]
-[assembly: AssemblyVersion("1.10.1.0")]
+[assembly: AssemblyVersion("1.11.0.0")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.8")]
 
 namespace DiskGuide
@@ -97,6 +97,7 @@ namespace DiskGuide
             WireSpace();
             WireHome();
             WirePlanning();
+            WireGlobalSearch();
             Get<Button>("ScanTasksBtn").Click+=delegate{
                 if(ranking!=null)tabs.SelectedItem=Get<TabItem>("RankingTab");
                 else if(measuring!=null || browsing!=null)tabs.SelectedItem=folderTab;
@@ -134,6 +135,24 @@ namespace DiskGuide
             Get<Button>("ClearScopeBtn").Click += delegate { cleanScopePath = null; BindClean(); };
         }
 
+        private void WireGlobalSearch()
+        {
+            var search=Get<TextBox>("GlobalSearch");var results=Get<ListBox>("GlobalSearchResults");var popup=Get<System.Windows.Controls.Primitives.Popup>("GlobalSearchPopup");
+            var commands=new List<Tuple<string,string,Action>>();
+            foreach(var entry in new[]{new[]{"清理首页","OverviewTab","首页 空间 C盘 D盘 满了"},new[]{"文件夹用途","FoldersTab","目录 文件夹 哪些能删"},new[]{"占用排行","RankingTab","大文件 占用 排行 空间"},new[]{"清理缓存","CleanupTab","清理 缓存 垃圾"},new[]{"开机启动","StartupTab","开机 启动 自启动 后台"},new[]{"已装软件","SoftwareTab","软件 卸载 应用 删除"}}){var name=entry[1];commands.Add(Tuple.Create(entry[0],entry[2],(Action)(()=>{tabs.SelectedItem=Get<TabItem>(name);})));}
+            commands.Add(Tuple.Create("管理保留设置","保护 保留 排除 游戏 EDA",(Action)ShowKeepRules));
+            commands.Add(Tuple.Create("迁移资料到 D 盘","迁移 移动 搬家 D盘",(Action)ShowTransfer));
+            commands.Add(Tuple.Create("查看空间变化","增长 历史 变化",(Action)ShowGrowth));
+            commands.Add(Tuple.Create("使用说明","帮助 说明 文档",(Action)OpenGuide));
+            Action filter=()=>{string term=search.Text.Trim();Get<TextBlock>("GlobalSearchHint").Visibility=term.Length==0?Visibility.Visible:Visibility.Collapsed;var found=commands.Where(c=>(c.Item1+" "+c.Item2).IndexOf(term,StringComparison.OrdinalIgnoreCase)>=0).ToList();results.ItemsSource=found;results.SelectedIndex=found.Count>0?0:-1;Get<TextBlock>("GlobalSearchEmpty").Visibility=found.Count==0?Visibility.Visible:Visibility.Collapsed;popup.IsOpen=term.Length>0;};
+            Action run=()=>{var item=results.SelectedItem as Tuple<string,string,Action>;if(item==null)return;popup.IsOpen=false;search.Clear();View.Dispatcher.BeginInvoke(item.Item3);};
+            search.TextChanged+=delegate{filter();};search.GotKeyboardFocus+=delegate{if(search.Text.Trim().Length>0)filter();};
+            search.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){if(e.Key==Key.Escape){popup.IsOpen=false;e.Handled=true;}else if(e.Key==Key.Enter){run();e.Handled=true;}else if(e.Key==Key.Down && results.Items.Count>0){results.Focus();var first=results.ItemContainerGenerator.ContainerFromIndex(results.SelectedIndex) as ListBoxItem;if(first!=null)first.Focus();e.Handled=true;}};
+            results.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){if(e.Key==Key.Enter){run();e.Handled=true;}else if(e.Key==Key.Escape){popup.IsOpen=false;search.Focus();popup.IsOpen=false;e.Handled=true;}};
+            results.PreviewMouseLeftButtonUp+=delegate(object sender,MouseButtonEventArgs e){var row=ItemsControl.ContainerFromElement(results,e.OriginalSource as DependencyObject) as ListBoxItem;if(row!=null){results.SelectedItem=row.Content;run();e.Handled=true;}};
+            View.Deactivated+=delegate{popup.IsOpen=false;};View.LocationChanged+=delegate{popup.IsOpen=false;};
+            View.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){if(e.Key==Key.K && Keyboard.Modifiers==ModifierKeys.Control){search.Focus();search.SelectAll();e.Handled=true;}};
+        }
         private bool OnFolders { get { return tabs.SelectedItem == folderTab; } }
         private void UpdateScanActivity()
         {
